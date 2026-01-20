@@ -3,7 +3,7 @@ import time
 import uuid
 import google.generativeai as genai
 
-# --- 1. 페이지 설정 ---
+# 페이지
 st.set_page_config(
     page_title="여행 챗봇",
     page_icon="✨",
@@ -29,7 +29,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# --- 2. 데이터 관리 함수 및 세션 초기화 ---
+# 세션 초기화
 
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -40,7 +40,7 @@ if "chat_history" not in st.session_state:
 if "current_chat_id" not in st.session_state:
     st.session_state.current_chat_id = None
 
-# [추가] API 키 저장을 위한 세션 변수
+# API 키 세션 상태 초기화
 if "api_key" not in st.session_state:
     st.session_state.api_key = ""
 
@@ -58,7 +58,7 @@ def format_history_for_gemini(messages):
     return history
 
 
-# --- 3. 로그인 화면 ---
+# 로그인 화면
 if not st.session_state.logged_in:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -77,13 +77,13 @@ if not st.session_state.logged_in:
     st.stop()
 
 
-# --- 4. 메인 앱 (로그인 성공 후) ---
+# 로그인 후 화면
 
-# [사이드바]
+# 사이드바
 with st.sidebar:
     st.title("여행 챗봇")
     
-    # [변경] API 키 입력창 추가 (가장 위쪽)
+    # API 키 입력창
     st.markdown("### 🔑 API 설정")
     api_key_input = st.text_input(
         "Google API Key를 입력하세요", 
@@ -92,22 +92,18 @@ with st.sidebar:
         value=st.session_state.api_key
     )
     
-    # 입력받은 키를 세션에 저장 및 설정
     if api_key_input:
         st.session_state.api_key = api_key_input
         genai.configure(api_key=st.session_state.api_key)
         
-        # [추가] 연결 성공 메시지 (초록색 박스)
-        st.success("✅ API 키가 적용되었습니다!")
+        st.success("API 키가 적용되었습니다!")
     else:
-        # [추가] 키가 없을 때 안내
         st.caption("키를 입력하고 Enter를 누르세요.")
 
 
     
     st.divider() # 
         
-    # 새 채팅 버튼
     if st.button("➕ 새 채팅", use_container_width=True, type="primary"):
         st.session_state.current_chat_id = None
         st.rerun()
@@ -142,7 +138,7 @@ with st.sidebar:
         st.rerun()
 
 
-# [메인 화면 로직]
+# 챗봇 메인 화면
 
 if st.session_state.current_chat_id is None:
     messages = []
@@ -160,7 +156,7 @@ if not messages:
     st.markdown(f"## <span style='background: linear-gradient(to right, #4285F4, #9B72CB); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>안녕하세요, {st.session_state.username}님</span>", unsafe_allow_html=True)
     st.markdown("### 어디로 여행을 떠나고 싶으신가요?")
     
-    # [추가] API 키가 없을 때 안내 메시지
+    # API 키가 없을 때 안내 메시지
     if not st.session_state.api_key:
         st.info("👈 왼쪽 사이드바에 **Google API Key**를 먼저 입력해주세요.")
         
@@ -184,10 +180,10 @@ chat_prompt = st.chat_input("프롬프트를 입력하세요")
 
 if button_prompt or chat_prompt:
     
-    # [중요] API 키 입력 확인
+    # API 키 입력 확인
     if not st.session_state.api_key:
         st.error("⚠️ API Key가 필요합니다. 왼쪽 사이드바에 키를 입력해주세요.")
-        st.stop() # 실행 중단
+        st.stop()
 
     prompt = button_prompt if button_prompt else chat_prompt
 
