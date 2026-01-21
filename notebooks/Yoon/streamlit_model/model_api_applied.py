@@ -84,9 +84,9 @@ with st.sidebar:
     st.title("여행 챗봇")
     
     # [변경] API 키 입력창 추가 (가장 위쪽)
-    st.markdown("### 🔑 API 설정")
+    st.markdown("### API 설정")
     api_key_input = st.text_input(
-        "Google API Key를 입력하세요", 
+        "Google API Key", 
         type="password",  # 입력 시 점(•)으로 가려짐
         placeholder="AIzaSy...",
         value=st.session_state.api_key
@@ -162,7 +162,7 @@ if not messages:
     
     # [추가] API 키가 없을 때 안내 메시지
     if not st.session_state.api_key:
-        st.info("👈 왼쪽 사이드바에 **Google API Key**를 먼저 입력해주세요.")
+        st.info("**Google API Key** 미입력")
         
     st.markdown("<br>", unsafe_allow_html=True)
     
