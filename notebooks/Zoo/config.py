@@ -22,7 +22,7 @@ LOAD_CONFIG = {
 # QA 데이터셋 설정
 # ======================
 QA_CONFIG = {
-    "window_size": 3,             # context 턴 수 + 1
+    "window_size": 4,             # context 턴(ABA) 수 + 1(B)
     "stride": 1,
     "response_role": "listener",  # 'listener', 'speaker', None
 }
