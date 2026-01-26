@@ -9,6 +9,14 @@ langchain-text-splitters>=0.3.0
 pymupdf
 chromadb
 sentence-transformers
+deepeval
+ragas
+langchain
+langchain-openai
+langchain-community
+langgraph
+chromadb
+tavily-python
 
 # --- 기존 라이브러리 스펙 ---
 trl==0.8.6
