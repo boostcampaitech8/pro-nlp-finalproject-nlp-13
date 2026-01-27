@@ -1,57 +1,61 @@
-from typing import Dict
 from langchain_chroma import Chroma
 from langchain.retrievers import EnsembleRetriever
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
+from langchain_core.vectorstores import VectorStoreRetriever
+from langchain_core.runnables import RunnableSerializable
+from langchain_community.retrievers import BM25Retriever
+from dataclasses import dataclass, field
 import pickle
 
+@dataclass(frozen=True)
+class RetrieverConfig:
+    db: Chroma
+    pickle_path: str
+    model_name: str
+    top_k: int = 5
+    search_type: str = "similarity"
+    search_kwargs: dict = field(default_factory=lambda: {"k": 5})   
+    weights: list = field(default_factory=lambda: [0.6, 0.4])
+    
 class HybridRetriever:
     def __init__(
-        self, 
-        db: Chroma,
-        pickle_path: str,
-        model_name: str,
-        top_k: int = 5,
-        search_type: str = "similarity",
-        search_kwargs: dict = {"k": 5},
-        weights: list = [0.6, 0.4],
-    ):
-        self.model_name = model_name
-        self.weights = weights
-        self.dense_retriever = self.load_dense_retriever(db, search_type, search_kwargs)
-        self.bm_25 = self.load_bm25_retriever(pickle_path, top_k)
-        llm = ChatOpenAI(
-            model=self.model_name, 
+        self,
+        config: RetrieverConfig):
+        self.config = config
+        self.dense_retriever = self.__load_dense_retriever__()
+        self.bm_25 = self.__load_bm25_retriever__()
+        model = ChatOpenAI(
+            model=self.config.model_name, 
             temperature=0)
-        self.model = llm
-        self.lang_chain = self.make_lang_chain()
-        # bm25, dense retriever 불러오기
+        self.model = model
+        self.lang_chain = self.__make_lang_chain__()
         
-    def load_dense_retriever(db, search_type, search_kwargs): # 동사로 이름 바꾸기
-        print(f"[RETRIEVER] making dense retriever with TYPE: {search_type} and Args: {search_kwargs}")
-        return db.as_retriever(
-            search_type=search_type,
-            search_kwargs=search_kwargs)
+    def __load_dense_retriever__(self) -> VectorStoreRetriever:
+        print(f"[RETRIEVER] making dense retriever with TYPE: {self.config.search_type} and ARGS: {self.config.search_kwargs}")
+        dense_retriever =  self.config.db.as_retriever(
+            search_type=self.config.search_type,
+            search_kwargs=self.config.search_kwargs)
+        return dense_retriever
         
-    def load_bm25_retriever(pickle_path, top_k):
-        print(f"[RETRIEVER] making bm25 retriever... PATH is: {pickle_path}")
-        with open(pickle_path, "rb") as f:
+    def __load_bm25_retriever__(self) -> BM25Retriever:
+        print(f"[RETRIEVER] making bm25 retriever with PATH: {self.config.pickle_path}")
+        with open(self.config.pickle_path, "rb") as f:
             bm25 = pickle.load(f)
-        bm25.k = top_k
+        bm25.k = self.config.top_k
         return bm25
         
-    def hybrid_retreiver(self) -> EnsembleRetriever: # 동사
+    def __load_hybrid_retreiver__(self) -> EnsembleRetriever:
         print(f"[RETRIEVER] making ensemble retriever...")
         ensemble_retriever = EnsembleRetriever(
             retrievers=[self.dense_retriever, self.bm_25],
-            weights=self.weights
+            weights=self.config.weights
         )
-        
         return ensemble_retriever
     
-    def make_lang_chain(self):
+    def __make_lang_chain__(self) -> RunnableSerializable:
         print(f"[RETRIEVER] make chaining with the retriever")
         template = """
         당신은 장소 추천 전문가로서 여행 계획 플래너가 여행 계획을 세울 때 참고할 수 있는 숙박 업소를 추출하는 역할을 맡았습니다.
@@ -68,17 +72,16 @@ class HybridRetriever:
         def format_docs(docs):
             return "\n\n".join([d.page_content for d in docs])
         
-        ensemble_retriever = self.hybrid_retreiver() 
+        ensemble_retriever = self.__load_hybrid_retreiver__() 
         rag_chain = (
             {"context": ensemble_retriever | format_docs, "question": RunnablePassthrough()}
             | prompt
             | self.model
             | StrOutputParser()
         )
-        
         return rag_chain
     
-    def retrieve(self, query):
+    def retrieve(self, query: str) -> str:
         response = self.lang_chain.invoke(query)
 
         print(f"질문: {query}")

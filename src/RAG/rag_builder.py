@@ -1,39 +1,20 @@
-from langchain_chroma import Chroma
+from rag import RagConfig, Rag
+from data_loader import make_docs
 from langchain_core.embeddings import Embeddings
-from langchain_core.documents import Document
-
-class RAGBuilder:
-    def __init__(self, 
-                 db_path: str,
-                 embeddings: Embeddings,
-                 documents: list,
-                 collection_name: str = "test",
-                 ):
-        self.db_path = db_path
-        self.embeddings = embeddings
-        self.collection_name = collection_name
-        self.documents = documents
+from langchain_openai import OpenAIEmbeddings
+from dotenv import load_dotenv
     
-    def build(self):
-        vectordb = Chroma(
-            embedding_function=self.embeddings,
-            collection_name=self.collection_name,
-            persist_directory=self.db_path)
-        
-        batch_size = 100
-        total_docs = len(self.documents)
+def main():
+    load_dotenv() # api key load
 
-        print(f"[RAG-BUILDER] building DB with docs.. total: {total_docs}")
-
-        for i in range(0, total_docs, batch_size):
-            batch = self.documents[i : i + batch_size]
-            vectordb.add_documents(batch)
-            print(f"[RAG-BUILDER] progress {min(i + batch_size, total_docs)} / {total_docs}")
+    DB_PATH = "./db/chroma_db"
+    BM25_PATH = "./db/bm25"
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+    file_path = ['../../data/stay_crawling.csv', '../../data/sports_crawling.csv', '../../data/busan_rag_data.json']
+    documents = make_docs(file_path)
+    config = RagConfig(db_path=DB_PATH, bm25_path=BM25_PATH, embeddings=embeddings, documents=documents)
+    rag = Rag(config=config)
+    rag.build()
     
-    def load(self):
-        print(f"[RAG-BUILDER] loading DB with path: {self.db_path}")
-        return Chroma(
-        persist_directory=self.db_path,
-        embedding_function=self.embeddings,
-        collection_name=self.collection_name,)
-    
+if __name__ == "__main__":
+    main()

@@ -9,7 +9,7 @@ TARGET_COLUMNS = [
         '가격', '영업시간', '주소', '연락처', '출처'
         ]
     
-def load(file_paths):
+def __load__(file_paths: list[str]) -> pd.DataFrame:
     df_list = []
     print(f"[DATA-LOADER] 총 {len(file_paths)} 개의 파일 로드를 시작합니다.")
     for path in file_paths:
@@ -35,7 +35,7 @@ def load(file_paths):
     print(f"[DATA-LOADER] total rows: {len(raw_data)}")
     return raw_data
     
-def preprocess(text) -> str:
+def __preprocess__(text: str) -> str:
     if not isinstance(text, str):
         text = str(text)
     text = re.sub(r'(\\n|\r|\t|\n)', ' ', text)
@@ -43,8 +43,8 @@ def preprocess(text) -> str:
     text = re.sub(r'[^가-힣a-zA-Z0-9\s.,!?]', '', text)
     return text.strip()
     
-def make_docs(file_paths) -> list:
-    raw_data = load(file_paths)
+def make_docs(file_paths: list[str]) -> list[Document]:
+    raw_data = __load__(file_paths)
     documents = []
     for _, row in raw_data.iterrows():
         
@@ -58,7 +58,7 @@ def make_docs(file_paths) -> list:
             if isinstance(val, (list, dict)) and len(val) == 0:
                 continue
             # 전처리
-            clean_val = preprocess(val)
+            clean_val = __preprocess__(val)
             if clean_val == "":
                 continue
 
