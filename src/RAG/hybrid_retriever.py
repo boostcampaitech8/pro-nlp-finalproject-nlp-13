@@ -8,7 +8,6 @@ from langchain_core.runnables import RunnablePassthrough
 import pickle
 
 class HybridRetriever:
-    # todo delete it chat gpt ? or upstages
     def __init__(
         self, 
         db: Chroma,
@@ -19,38 +18,34 @@ class HybridRetriever:
         search_kwargs: dict = {"k": 5},
         weights: list = [0.6, 0.4],
     ):
-        self.pickle_path = pickle_path
-        self.top_k = top_k
-        self.search_type = search_type
-        self.search_kwargs = search_kwargs
         self.model_name = model_name
         self.weights = weights
-        self.db = db
+        self.dense_retriever = self.load_dense_retriever(db, search_type, search_kwargs)
+        self.bm_25 = self.load_bm25_retriever(pickle_path, top_k)
         llm = ChatOpenAI(
             model=self.model_name, 
             temperature=0)
         self.model = llm
         self.lang_chain = self.make_lang_chain()
+        # bm25, dense retriever 불러오기
         
-    def dense_retriever(self):
-        print(f"[RETRIEVER] making dense retriever with TYPE: {self.search_type} and Args: {self.search_kwargs}")
-        return self.db.as_retriever(
-            search_type=self.search_type,
-            search_kwargs= self.search_kwargs)
+    def load_dense_retriever(db, search_type, search_kwargs): # 동사로 이름 바꾸기
+        print(f"[RETRIEVER] making dense retriever with TYPE: {search_type} and Args: {search_kwargs}")
+        return db.as_retriever(
+            search_type=search_type,
+            search_kwargs=search_kwargs)
         
-    def load_bm25(self):
-        print(f"[RETRIEVER] making bm25 retriever... PATH is: {self.pickle_path}")
-        with open(self.pickle_path, "rb") as f:
+    def load_bm25_retriever(pickle_path, top_k):
+        print(f"[RETRIEVER] making bm25 retriever... PATH is: {pickle_path}")
+        with open(pickle_path, "rb") as f:
             bm25 = pickle.load(f)
-        bm25.k = self.top_k
+        bm25.k = top_k
         return bm25
         
-    def hybrid_retreiver(self) -> EnsembleRetriever:
+    def hybrid_retreiver(self) -> EnsembleRetriever: # 동사
         print(f"[RETRIEVER] making ensemble retriever...")
-        dense_retriever = self.dense_retriever()
-        bm25_retriever = self.load_bm25()
         ensemble_retriever = EnsembleRetriever(
-            retrievers=[dense_retriever, bm25_retriever],
+            retrievers=[self.dense_retriever, self.bm_25],
             weights=self.weights
         )
         
@@ -83,11 +78,9 @@ class HybridRetriever:
         
         return rag_chain
     
-    def ask(self, query):
+    def retrieve(self, query):
         response = self.lang_chain.invoke(query)
 
         print(f"질문: {query}")
         print(f"답변:\n{response}")
         return response
-        
-        

@@ -14,7 +14,7 @@ class RAGBuilder:
         self.collection_name = collection_name
         self.documents = documents
     
-    def builder(self):
+    def build(self):
         vectordb = Chroma(
             embedding_function=self.embeddings,
             collection_name=self.collection_name,
@@ -30,7 +30,7 @@ class RAGBuilder:
             vectordb.add_documents(batch)
             print(f"[RAG-BUILDER] progress {min(i + batch_size, total_docs)} / {total_docs}")
     
-    def loader(self):
+    def load(self):
         print(f"[RAG-BUILDER] loading DB with path: {self.db_path}")
         return Chroma(
         persist_directory=self.db_path,
