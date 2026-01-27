@@ -1,20 +1,23 @@
-# --- 핵심 프레임워크 ---
-transformers==4.40.2
-langchain>=0.3.0
-langchain-community>=0.3.0
-langchain-core>=0.3.0
-langchain-text-splitters>=0.3.0
-
 # --- RAG 및 PDF 처리 필수 패키지 ---
 pymupdf
 chromadb
 sentence-transformers
+deepeval
+ragas
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-core>=0.3.0
+langchain-text-splitters>=0.3.0
+langchain-openai
+chromadb
+tavily-python
 
 # --- 기존 라이브러리 스펙 ---
 trl==0.8.6
 ipykernel==6.29.5
 ipywidgets==8.1.5
 scikit-learn==1.5.2
+transformers==4.40.2
 matplotlib==3.9.2
 evaluate==0.4.3
 peft==0.10.0

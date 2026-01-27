@@ -52,3 +52,15 @@ output.csv
 
 # png files
 *.png
+
+# json files
+*.json
+
+# deepeval files
+.deepeval
+
+# API key file
+.env
+
+# lof files
+*.log
