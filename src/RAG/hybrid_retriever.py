@@ -81,7 +81,12 @@ class HybridRetriever:
         )
         return rag_chain
     
-    def retrieve(self, query: str) -> str:
+    def retrieve(self, query: str):
+        retriever = self.__load_hybrid_retreiver__()
+        docs = retriever.get_relevant_documents(query)
+        return docs
+    
+    def retrieve_with_model(self, query: str) -> str:
         response = self.lang_chain.invoke(query)
 
         print(f"질문: {query}")
