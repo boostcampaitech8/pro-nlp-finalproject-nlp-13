@@ -11,7 +11,7 @@ from persona.utils.setup_wandb import setup_wandb
 from persona.training.trainer import PersonaTrainer
 
 
-def main(config_path: str = "/data/ephemeral/pro-nlp-finalproject-nlp-13/notebooks/Zoo/persona/configs/train_configs.yaml"):
+def main(config_path: str = "/data/ephemeral/pro-nlp-finalproject-nlp-13/persona/configs/train_configs.yaml"):
     
     # Config 로드
     config = load_config(config_path)
