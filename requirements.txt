@@ -31,3 +31,13 @@ numpy==1.26.4
 pandas==2.2.2
 openpyxl==3.1.5
 rich==14.2.0
+
+# --- streamlit 관련 라이브러리 ---
+streamlit==1.36.0
+google-generativeai
+altair==5.4.0
+pydeck==0.9.1
+pillow==10.4.0  
+toml==0.10.2
+cachetools==5.4.0
+protobuf==5.27.3
