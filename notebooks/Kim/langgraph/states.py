@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal
 from typing_extensions import Annotated, NotRequired, TypedDict
 from pydantic import BaseModel, Field
-
-from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, RemoveMessage
-from langchain.chat_models import init_chat_model
-from langgraph.graph import StateGraph, START, END
+from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
-from langgraph.checkpoint.memory import MemorySaver
 
 Route = Literal["direct", "rag", "web"]
 
@@ -19,7 +15,6 @@ class RagDocument(TypedDict):
     source: NotRequired[str]        
     metadata: NotRequired[Dict[str, Any]]
 
-
 # WebSearch
 class WebResult(TypedDict):
     title: str
@@ -27,7 +22,6 @@ class WebResult(TypedDict):
     snippet: NotRequired[str]  
     score: NotRequired[float]        
     published_date: NotRequired[str]  
-
 
 # Router
 class RouterDecision(BaseModel):
@@ -44,13 +38,11 @@ class Citation(TypedDict):
     quote: NotRequired[str]    
     score: NotRequired[float]
 
-
 # Debug
 class NodeError(TypedDict):
     node: str
     message: str
     detail: NotRequired[Dict[str, Any]]
-
 
 class State(TypedDict):
     messages: Annotated[List[AnyMessage], add_messages]

@@ -2,6 +2,9 @@ import streamlit as st
 import time
 import uuid
 import google.generativeai as genai
+from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, RemoveMessage
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph import build_graph
 
 # 페이지
 st.set_page_config(
@@ -205,7 +208,15 @@ if button_prompt or chat_prompt:
         message_placeholder = st.empty()
         full_response = ""
         
+        # memory = MemorySaver()
+
+        # app = build_graph(checkpointer=memory)
+
+        # thread_id = "test_user_01"
+        # config = {"configurable": {"thread_id": thread_id}}
+        
         try:
+            # the original
             model = genai.GenerativeModel('gemini-2.5-flash')
             past_history = format_history_for_gemini(messages[:-1])
             chat_session = model.start_chat(history=past_history)
@@ -217,6 +228,33 @@ if button_prompt or chat_prompt:
                     message_placeholder.markdown(full_response + "▌")
             
             message_placeholder.markdown(full_response)
+            
+            # while True:
+            #     full_response = ""
+            #     user_input = input("User: ")
+            #     if user_input.lower() in ["q", "quit"]:
+            #         print("종료합니다.")
+            #         full_response += "종료합니다."
+            #         break
+                
+            #     inputs = {"messages": [HumanMessage(content=user_input)]}
+                
+            #     result = app.invoke(inputs, config=config)
+                
+            #     ai_msg = result["final_answer"]
+            #     route = result.get("route", "알 수 없음")
+            #     summary = result.get("summary", "")
+
+            #     print(f"AI: {ai_msg}")
+            #     full_response += f"AI: {ai_msg}"
+            #     print(f" └─ [Debug] 경로: {route}")
+            #     full_response += f" └─ [Debug] 경로: {route}"
+                
+            #     if summary:
+            #         print(f"   └─ [Debug] 📝 요약 발생: {summary}")
+            #         full_response += f"   └─ [Debug] 📝 요약 발생: {summary}"
+                
+            #     print("-" * 40)
             
         except Exception as e:
             full_response = f"⚠️ 에러가 발생했습니다: {str(e)}"
