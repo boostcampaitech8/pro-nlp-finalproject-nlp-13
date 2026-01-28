@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 def create_qa_dataset(
     df: pd.DataFrame,
-    window_size: int = 3,
+    window_size: int = 4,
     stride: int = 1,
     response_role: str | None = 'listener',
     empathy_only: bool = True,
@@ -19,7 +19,7 @@ def create_qa_dataset(
 
     Args:
         df: 발화 DataFrame (load_json_to_dataframe 결과)
-        window_size: 윈도우 크기 (context 턴 수 + 1, 기본 3 = 2턴 context + 1턴 response)
+        window_size: 윈도우 크기 (context 턴 수 + 1, 기본 4 = 3턴 context + 1턴 response)
         stride: 슬라이딩 간격 (기본 1)
         response_role: 응답자 필터링
             - 'listener': listener(B)만 (기본)
