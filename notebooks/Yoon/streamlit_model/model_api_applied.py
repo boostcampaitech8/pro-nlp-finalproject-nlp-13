@@ -83,13 +83,9 @@ if not st.session_state.logged_in:
 with st.sidebar:
     st.title("여행 챗봇")
     
-<<<<<<< HEAD
     # [변경] API 키 입력창 추가 (가장 위쪽)
     st.markdown("### API 설정")
-=======
-    # API 키 입력창
-    st.markdown("### 🔑 API 설정")
->>>>>>> b0656402e41c8bd67d72c6f70ab7e97d1517e134
+
     api_key_input = st.text_input(
         "Google API Key", 
         type="password",  # 입력 시 점(•)으로 가려짐
