@@ -13,7 +13,7 @@ chromadb==0.5.3
 sentence-transformers==3.0.1
 deepeval
 ragas
-# langgraph==0.2.30
+langgraph==1.0.7
 tavily-python==0.3.5
 rank_bm25
 
