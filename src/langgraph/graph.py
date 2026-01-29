@@ -1,5 +1,6 @@
-from states import State, RouterDecision
 from __future__ import annotations
+
+from states import State, RouterDecision
 from typing import Literal
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, RemoveMessage
 from langchain.chat_models import init_chat_model
@@ -7,8 +8,8 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import MemorySaver
 
-from ....src.RAG.rag import Rag, RagConfig
-from ....src.RAG.hybrid_retriever import HybridRetriever, RetrieverConfig
+from src.RAG.rag import Rag, RagConfig
+from src.RAG.hybrid_retriever import HybridRetriever, RetrieverConfig
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_tavily import TavilySearch
 
@@ -16,10 +17,13 @@ import uuid
 
 class LangGraph:
     def __init__(self):
-        llm = init_chat_model("openai:gpt-5-nano")
+        llm = init_chat_model(
+            "gpt-4o-mini",
+            model_provider="openai",
+        )
         
-        DB_PATH = "./db/chroma_db"
-        BM25_PATH = "./db/bm25"
+        DB_PATH = "../RAG/db/chroma_db"
+        BM25_PATH = "../RAG/db/bm25"
         model_name = "gpt-4o"
         
         embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
@@ -156,7 +160,7 @@ class LangGraph:
         return {}
 
     # edge
-    def get_next_step(state: State) -> Literal["rag", "web", "chatbot"]:
+    def get_next_step(self, state: State) -> Literal["rag", "web", "chatbot"]:
         route = state["route"]
         
         if route == "rag":
@@ -166,7 +170,7 @@ class LangGraph:
         else:
             return "chatbot"  # direct인 경우
 
-    def should_summarize(state: State):
+    def should_summarize(self, state: State):
         if len(state["messages"]) > 6:
             return "summarize"
         return "end"
@@ -178,7 +182,7 @@ class LangGraph:
         workflow.add_node("rag", self.rag_node)
         workflow.add_node("web", self.web_search_node)
         workflow.add_node("chatbot", self.chatbot_node)
-        workflow.add_node("summarize", self.ummarize_node)
+        workflow.add_node("summarize", self.summarize_node)
 
         workflow.add_edge(START, "router")
 
