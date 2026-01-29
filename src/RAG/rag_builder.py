@@ -10,7 +10,7 @@ def main():
     DB_PATH = "./db/chroma_db"
     BM25_PATH = "./db/bm25"
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-    file_path = ['../../data/stay_crawling.csv', '../../data/sports_crawling.csv', '../../data/busan_rag_data.json']
+    file_path = ['../../data/crawling/stay_crawling.csv', '../../data/crawling/sports_crawling.csv', '../../data/guidebook/busan_rag_data.json']
     documents = make_docs(file_path)
     config = RagConfig(db_path=DB_PATH, bm25_path=BM25_PATH, embeddings=embeddings, documents=documents)
     rag = Rag(config=config)

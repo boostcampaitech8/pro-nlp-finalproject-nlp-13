@@ -22,8 +22,8 @@ class LangGraph:
             model_provider="openai",
         )
         
-        DB_PATH = "../RAG/db/chroma_db"
-        BM25_PATH = "../RAG/db/bm25"
+        DB_PATH = "src/RAG/db/chroma_db"
+        BM25_PATH = "src/RAG/db/bm25"
         model_name = "gpt-4o"
         
         embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
