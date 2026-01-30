@@ -2,9 +2,9 @@ import streamlit as st
 import time
 import uuid
 import google.generativeai as genai
-from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, RemoveMessage
+from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
-from graph import LangGraph
+from src.graph.graph import LangGraph
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,18 +15,6 @@ st.set_page_config(
     page_icon="✨",
     layout="wide"
 )
-
-if "langgraph_app" not in st.session_state:
-    memory = MemorySaver()
-    langgraph = LangGraph()
-    app = langgraph.build_graph(checkpointer=memory)
-
-    thread_id = str(uuid.uuid4())
-    config = {"configurable": {"thread_id": thread_id}}
-
-    st.session_state.langgraph_app = app
-    st.session_state.langgraph_config = config
-
 
 st.markdown("""
 <style>
@@ -57,6 +45,17 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = {}
 if "current_chat_id" not in st.session_state:
     st.session_state.current_chat_id = None
+    
+if "langgraph_app" not in st.session_state:
+    memory = MemorySaver()
+    langgraph = LangGraph()
+    app = langgraph.build_graph(checkpointer=memory)
+
+    thread_id = str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+
+    st.session_state.langgraph_app = app
+    st.session_state.langgraph_config = config
 
 # API 키 세션 상태 초기화
 if "api_key" not in st.session_state:
@@ -153,6 +152,8 @@ with st.sidebar:
         st.session_state.logged_in = False
         st.session_state.username = ""
         st.session_state.current_chat_id = None
+        st.session_state.langgraph_app = None
+        st.session_state.langgraph_config = None
         st.session_state.api_key = "" # 로그아웃 시 키도 삭제
         st.rerun()
 

@@ -27,6 +27,7 @@ class HybridRetriever:
         self.config = config
         self.dense_retriever = self.__load_dense_retriever__()
         self.bm_25 = self.__load_bm25_retriever__()
+        self.hybrid_retreiver = self.__load_hybrid_retreiver__()
         model = ChatOpenAI(
             model=self.config.model_name, 
             temperature=0)
@@ -82,8 +83,7 @@ class HybridRetriever:
         return rag_chain
     
     def retrieve(self, query: str):
-        retriever = self.__load_hybrid_retreiver__()
-        docs = retriever.get_relevant_documents(query)
+        docs = self.hybrid_retreiver.invoke(query)
         return docs
     
     def retrieve_with_model(self, query: str) -> str:
