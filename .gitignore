@@ -64,3 +64,6 @@ output.csv
 
 # lof files
 *.log
+
+# rag DB
+db
