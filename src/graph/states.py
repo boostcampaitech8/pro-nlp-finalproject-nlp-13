@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
 
-Route = Literal["direct", "rag", "web"]
+Route = Literal["direct", "rag", "web", "rag-web"]
 
 class RagDocument(TypedDict):
     doc_id: NotRequired[str]          
@@ -25,7 +25,7 @@ class WebResult(TypedDict):
 
 # Router
 class RouterDecision(BaseModel):
-    route: Literal["direct", "rag", "web"] = Field(description="다음 실행할 단계")
+    route: Literal["direct", "rag", "web", "rag-web"] = Field(description="다음 실행할 단계")
     route_reason: str = Field(description="선택한 이유")
 
 # Citation
@@ -50,6 +50,12 @@ class State(TypedDict):
 
     query: str
     user_info: NotRequired[Dict]
+    
+    draft_answer: NotRequired[str]
+    
+    sufficient: NotRequired[bool]
+    next_route: NotRequired[str]
+
 
     # 라우팅 결정
     route: NotRequired[Route]
