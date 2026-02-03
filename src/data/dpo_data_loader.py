@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from datasets import Dataset
 
+
 @dataclass(frozen=True)
 class DPODataConfig:
     train_path: str
@@ -23,8 +24,8 @@ def load_dpo_dataset(json_path: str, eval_split_ratio: float = 0.9):
     for item in data:
         dpo_data.append({
             "prompt": item["instruction"],
-            "chosen": item["chosen"],
-            "rejected": item["rejected"]
+            "chosen": item["chosen"][-1]["content"],
+            "rejected": item["rejected"][-1]["content"]
         })
 
     dataset = Dataset.from_list(dpo_data)
