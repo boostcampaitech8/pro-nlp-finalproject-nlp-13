@@ -60,11 +60,10 @@ Rationale: [한 문장]
 
         user_content += (
             "[평가 기준]\n"
-            "- 자연스러움: 구어체, 이모티콘, 줄임말 사용 여부\n"
-            "- 맥락 적합성: 이전 대화를 이해하고 이어지는가\n"
-            "- 참여 유도: 공감, 질문 등 대화 지속 요소\n"
-            "- 감정 적절성: 상황에 맞는 톤과 공감\n"
-            "- 간결성: SNS 특성에 맞는 길이\n\n"
+            "1. 자연스러움 (naturalness) : AI 특유의 기계적이고 형식적인 느낌이 제거되었는지 평가합니다.\n"
+            "2. 맥락 적합성 (contextual_relevance) : 이전 사용자 발화를 이해하고 그 흐름을 자연스럽게 이어가는지 평가합니다.\n"
+            "3. 참여 유도 (engagement) : 공감 표현, 반응, 질문 등으로 대화를 지속하려는 요소가 있는지 평가합니다.\n"
+            "4. 간결성 (conciseness) : SNS 대화 특성에 맞는 적절한 길이인지 평가합니다.\n\n"
             "주의: 설명조, 보고서체, 비즈니스 이메일 말투는 낮은 점수를 부여하십시오.\n\n"
         )
 
@@ -79,6 +78,7 @@ Rationale: [한 문장]
             {"role": "system", "content": system_content},
             {"role": "user", "content": user_content},
         ]
+
 
 class FilterNoneRatings(Step):
     @property
