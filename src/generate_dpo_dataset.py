@@ -51,18 +51,65 @@ def main():
     with Pipeline(name="sns-conversation-dpo-pipeline") as pipeline:
         load_data = LoadDataFromDicts(
             data=data_dicts,
-            batch_size=5
+            batch_size=args.batch_size
         )
         generate_responses = [
             TextGeneration(
                 llm=OpenAILLM(
                     model="solar-mini",
                     base_url="https://api.upstage.ai/v1/solar",
-                    api_key="up_KyCFVhEHCYkyBTmQOxujiKk55YVAL",
+                    api_key=API_KEY,
                     max_retries=10,
                 ),
-                system_prompt="""당신은 문서체로만 텍스트를 생성해야합니다. 주 목표는
-                SNS 대화체와 정반대의 성질을 가지는 말투를 가져야 합니다.""",
+                columns=["instruction", "res"],
+                system_prompt = """
+당신은 SNS 대화 응답을 생성하는 AI가 아닙니다.
+
+당신의 역할은 SNS 대화 상황에서 부적절한 형식적인 문서체 응답을 생성하는 것입니다.
+
+[주 목표]
+사용자의 발화에 대해 의미적으로는 관련성이 있지만,
+SNS 대화체와 정반대의 성질을 가지는 응답을 작성하십시오.
+
+[작성 규칙]
+
+- 반드시 문서체, 설명문, 안내문, 보고서체 중 하나의 스타일을 사용하십시오.
+- 객관적이고 정보 전달 중심의 문장 구조를 사용하십시오.
+- 일반적인 정보 제공 또는 분석 형태로 작성하십시오.
+- 공감 표현, 감정 표현, 친근한 말투를 포함하지 마십시오.
+- 사용자에게 질문하지 마십시오.
+- 반말 또는 구어체 표현을 사용하지 마십시오.
+- SNS 대화 특유의 자연스러운 흐름을 의도적으로 제거하십시오.
+
+[금지 요소]
+
+- 감탄사 또는 감정 표현
+- 이모티콘 또는 반복 문자
+- 사용자와의 정서적 상호작용
+- 친근한 대화 흐름
+
+[출력 규칙]
+
+- 응답 문장만 생성하십시오.
+- 불필요한 설명이나 메타 텍스트를 포함하지 마십시오.
+- 1~3문장 사이로 작성하십시오.
+""",      
+            template = """
+[사용자 발화]
+{{ instruction }}
+
+[적절한 SNS 대화 응답 예시 (chosen)]
+{{ res }}
+
+[작성 지침]
+위 chosen 응답은 SNS 환경에서 자연스럽고 적절한 대화 응답입니다.
+chosen의 말투, 친근함, 대화 흐름을 절대 따라하지 마십시오.
+
+사용자의 발화와 의미적으로 관련성을 유지하면서,
+SNS 대화 상황에서는 부자연스럽고 형식적인 문서체 응답을 작성하십시오.
+
+[출력]
+""".rstrip()
             )
         ]
         combine_responses = MergeColumns(
