@@ -19,12 +19,16 @@ def call_solar_pro2(
     messages: List[Message],
     cfg: LLMConfig = LLMConfig(),
 ) -> str:
-    response = client.chat.completions.create(
-        model=cfg.model,
-        messages=messages,
-        stream=False,
-        temperature=cfg.temperature,
-        top_p=cfg.top_p,
-        reasoning_effort=cfg.reasoning_effort,
-    )
-    return response.choices[0].message.content.strip()
+    try:
+        response = client.chat.completions.create(
+            model=cfg.model,
+            messages=messages,
+            stream=False,
+            temperature=cfg.temperature,
+            top_p=cfg.top_p,
+            reasoning_effort=cfg.reasoning_effort,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"\n[LLM API Error] {type(e).__name__}: {e}")
+        raise

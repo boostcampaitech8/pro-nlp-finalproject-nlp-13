@@ -9,6 +9,7 @@ from src.freshqa.messages import build_messages
 @dataclass(frozen=True)
 class RouteResult:
     answer_type: str
+    answer: str
     reasoning: str
 
 def route_question(
@@ -33,9 +34,21 @@ def route_question(
     )
 
     response_text = llm_call(messages).strip()
-    response_json = safe_parse_json(response_text)
 
-    answer_type = response_json.get("answer_type")
+    try:
+        response_json = safe_parse_json(response_text)
+    except Exception:
+        response_json = {
+            "answer_type": "B",
+            "answer": "웹 검색이 필요합니다.",
+            "reasoning": "router JSON 파싱 실패",
+        }
+
+    answer_type = response_json.get("answer_type") or "B"
+    if answer_type not in ("A", "B", "C", "D"):
+        answer_type = "B"
+    
     reasoning = response_json.get("reasoning", "")
+    answer = response_json.get("answer", "")
 
-    return response_text, RouteResult(answer_type=answer_type, reasoning=reasoning)
+    return response_text, RouteResult(answer_type=answer_type, answer=answer, reasoning=reasoning)

@@ -1,0 +1,17 @@
+llm:
+  model: "solar-pro2"
+  temperature: 0.0
+  top_p: 1.0
+  reasoning_effort: "high"
+
+wiki:
+  lang: "ko"
+  top_k: 5
+  max_length: 10000
+  user_agent: "MyFreshQA/1.0 (sucruba7@example.com)"
+
+io:
+  input_csv: "data/ko-freshqa_2025_dev.csv"    
+  output_csv: "result/output.csv"
+  question_col: "question"
+  output_col: "model_response"
