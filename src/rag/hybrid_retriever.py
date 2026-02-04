@@ -1,13 +1,7 @@
 from langchain_chroma import Chroma
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
 from langchain_core.vectorstores import VectorStoreRetriever
-from langchain_core.runnables import RunnableSerializable
 from langchain_community.retrievers import BM25Retriever
 from dataclasses import dataclass, field
-from src.rag.data_loader import make_docs
 
 import pickle
 

@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import os
 from states import State, RouterDecision
-from typing import Literal, List
+from typing import List
 from langchain_core.messages import SystemMessage, RemoveMessage, HumanMessage
 from langchain.chat_models import init_chat_model
 from langgraph.graph import StateGraph, START, END
-from langchain_core.prompts import ChatPromptTemplate
 from langgraph.checkpoint.memory import MemorySaver
 
-from langchain_openai import OpenAIEmbeddings
 from tavily import TavilyClient
 from dotenv import load_dotenv
 

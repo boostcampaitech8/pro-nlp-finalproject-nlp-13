@@ -2,10 +2,9 @@ import streamlit as st
 import time
 import uuid
 from dotenv import load_dotenv, find_dotenv
+
 load_dotenv(find_dotenv())
 from src.graph.graph import LangGraph
-
-
 
 st.set_page_config(
     page_title="여행 챗봇",
