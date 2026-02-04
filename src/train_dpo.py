@@ -20,7 +20,6 @@ def main(
     sft_adapter_path: str,
     wandb_cfg: Dict[str, Any] = None,
 ):
-    print(f"--- Random seed 세팅: {dpo_cfg.seed} ---")
     set_seed(dpo_cfg.seed)
 
 
@@ -32,13 +31,13 @@ def main(
                 "dpo_data": dpo_data_cfg.__dict__,
                 "sft_adapter_path": sft_adapter_path,
             },
-            project_name=wandb_cfg.get("project_name", "DPO-exaone"),
+            project_name=wandb_cfg.get("project_name", "DPO-training"),
             run_name=wandb_cfg.get("run_name") or f"dpo_{Path(dpo_cfg.output_dir).name}",
             entity=wandb_cfg.get("entity"),
         )
 
 
-    print(f"--- Tokenizer 로딩 ---")
+    print("===== Tokenizer 로딩 =====")
     tokenizer = AutoTokenizer.from_pretrained(
         model_cfg.model_name_or_path,
         trust_remote_code=model_cfg.trust_remote_code,
@@ -48,14 +47,13 @@ def main(
         print(f"pad_token not found, set to eos_token: {tokenizer.eos_token}")
 
 
-    print("--- DPO 데이터셋 로딩 ---")
+    print("===== DPO 데이터셋 로딩 =====")
     train_dataset, eval_dataset = load_dpo_dataset(
-        dpo_data_cfg.train_path,
-        dpo_data_cfg.eval_ratio
+        dpo_data_cfg.train_path
     )
 
 
-    print("--- DPO Trainer (SFT adapter) 빌드 ---")
+    print("===== DPO Trainer (SFT adapter) 빌드 =====")
     trainer = build_dpo_trainer(
         dpo_cfg=dpo_cfg,
         model_cfg=model_cfg,
@@ -67,7 +65,7 @@ def main(
 
 
     print("-" * 60)
-    print("--- DPO 학습 시작 ---")
+    print("===== DPO 학습 시작 =====")
     print("-" * 60)
     trainer.train()
 
@@ -80,8 +78,8 @@ def main(
         wandb_finish()
 
     print("-" * 60)
-    print("--- DPO 학습 완료 ---")
-    print(f"--- 모델 저장 경로: {final_model_path} ---")
+    print("===== DPO 학습 완료 =====")
+    print(f"===== 모델 저장 경로: {final_model_path} =====")
     print("-" * 60)
     
 
@@ -113,7 +111,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="DPO Training for EXAONE")
+    parser = argparse.ArgumentParser(description="DPO Training")
     parser.add_argument(
         "--config",
         type=str,
