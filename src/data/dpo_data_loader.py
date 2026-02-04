@@ -2,8 +2,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
-
-from datasets import Dataset
+from datasets import load_dataset
 
 
 @dataclass(frozen=True)
@@ -16,27 +15,24 @@ class DPODataConfig:
     eval_ratio: float = 0.1
 
 
-def load_dpo_dataset(json_path: str, eval_split_ratio: float = 0.9):
-    with open(json_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
+from datasets import load_dataset
 
-    dpo_data = []
-    for item in data:
-        dpo_data.append({
-            "prompt": item["instruction"],
-            "chosen": item["chosen"][-1]["content"],
-            "rejected": item["rejected"][-1]["content"]
-        })
+def load_dpo_dataset(json_path: str):
+    train_ds = load_dataset("json", data_files=json_path, field="train", split="train")
+    eval_ds = load_dataset("json", data_files=json_path, field="eval", split="train")
 
-    dataset = Dataset.from_list(dpo_data)
+    def process(example):
+        return {
+            "prompt": example["prompt"],
+            "chosen": example["chosen"],
+            "rejected": example["rejected"]
+        }
 
-    split_dataset = dataset.train_test_split(
-        test_size=eval_split_ratio,
-        seed=42
-    )
+    train_ds = train_ds.map(process, remove_columns=train_ds.column_names)
+    eval_ds = eval_ds.map(process, remove_columns=eval_ds.column_names)
 
-    print(f"--- 데이터셋 로드 완료 ---")
-    print(f"  - Train samples: {len(split_dataset['train'])}")
-    print(f"  - Eval samples: {len(split_dataset['test'])}")
+    print(f"!!!!! 데이터셋 로드 완료 !!!!!")
+    print(f"  - Train samples: {len(train_ds)}")
+    print(f"  - Eval samples: {len(eval_ds)}")
     
-    return split_dataset['train'], split_dataset['test']
+    return train_ds, eval_ds
