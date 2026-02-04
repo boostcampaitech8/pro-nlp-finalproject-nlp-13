@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import re
 from langchain_core.documents import Document
+import uuid
 
 TARGET_COLUMNS = [
         '장소명', '구분', '설명', '메뉴', '카테고리',
@@ -69,7 +70,13 @@ def make_docs(file_paths: list[str]) -> list[Document]:
         content = "\n".join(valid_lines)
         if not content:
             continue
-        doc = Document(page_content=content, metadata={"sort":sort})
+        doc = Document(
+            page_content=content, 
+            metadata={
+                "sort":sort,
+                "id":str(uuid.uuid4())
+                }
+            )
         documents.append(doc)
         
     return documents
