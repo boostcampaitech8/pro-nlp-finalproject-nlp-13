@@ -36,7 +36,6 @@ def weather_tool(city: str) -> str:
     )
 
 
-@tool
 def forecast_tool(city: str, days: int = 1) -> str:
     """
     도시명과 일수를 받아 예보 날씨 정보를 반환한다.

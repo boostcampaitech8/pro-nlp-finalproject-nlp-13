@@ -28,7 +28,7 @@ class RouterDecision(BaseModel):
     # route: Literal["direct", "rag", "web", "evaluator"] = Field(description="다음 실행할 단계")
     rag_queries: Optional[List[str]] = None
     web_queries: Optional[List[str]] = None
-    weather_queries: Optional[List[str]] = None
+    weather_queries: Optional[List[int]] = None
     direct: Optional[str] = None
     route_reason: str = Field(description="선택한 이유")
 
@@ -72,7 +72,7 @@ class State(TypedDict):
     # 검색 결과
     documents: NotRequired[List[RagDocument]]
     web_results: NotRequired[List[WebResult]]
-    weather_results: NotRequired[List[str]]
+    weather_results: NotRequired[List[List[str]]]
 
     # 출력
     final_answer: NotRequired[str]

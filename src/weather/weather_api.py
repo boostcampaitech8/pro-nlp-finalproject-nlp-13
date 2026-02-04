@@ -2,14 +2,17 @@
 import requests
 from datetime import datetime, timedelta, timezone
 
-from .weather_config import WEATHER_API_KEY, DEFAULT_CITY
+from .weather_config import DEFAULT_CITY
+from dotenv import load_dotenv
+import os
 
 KST = timezone(timedelta(hours=9))
-
+load_dotenv()
+WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 
 def get_coordinates(city: str) -> dict:
     """도시명으로 좌표 조회"""
-    url = f"http://api.openweathermap.org/geo/1.0/direct?q={city}&limit=1&appid={API_KEY}"
+    url = f"http://api.openweathermap.org/geo/1.0/direct?q={city}&limit=1&appid={WEATHER_API_KEY}"
 
     try:
         response = requests.get(url, timeout=5)

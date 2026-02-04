@@ -16,25 +16,32 @@ from dotenv import load_dotenv
 from src.rag.rag import Rag, RagConfig
 from src.rag.hybrid_retriever import HybridRetriever, RetrieverConfig
 
+from src.weather.weather_tools import forecast_tool
+from datetime import datetime
+
 load_dotenv()
 
 VALIDATION_SYSTEM_PROMPT = """
-당신은 Query Generator입니다. 사용자의 질문과 검색 결과를 비교하여 추가 정보가 필요한지 판단하세요.
-결과는 **반드시** 아래 JSON 형식으로만 출력해야 합니다. (마크다운, 설명 금지)
+당신은 검색 결과가 사용자의 질문을 해결하기에 충분한지 판단하는 **Sufficiency Validator(충족 여부 판단기)**입니다.
+사용자 질문과 제공된 검색 결과(rag, web, weather)를 비교하여 판단하세요.
 
-**출력 예시:**
+**★ 핵심 원칙 (가장 중요):**
+1. **중복 검색 금지:** 이미 검색 결과에 답변할 수 있는 정보가 포함되어 있다면, 해당 카테고리의 쿼리는 반드시 `null`을 반환해야 합니다.
+2. **완벽주의 금지:** 정보가 1개라도 확실하게 있다면 "충분하다"고 판단하세요. (예: 호텔이 하나라도 추천되었으면 추가 검색 불필요)
+3. **불필요한 생성 금지:** 억지로 쿼리를 만들어내지 마세요.
+
+**판단 기준:**
+- **weather:** 질문한 날짜/지역의 기상 정보가 결과에 있는가? -> 있으면 `null`
+- **rag:** 질문한 장소(숙소, 맛집 등)에 대한 정보가 1개 이상 있는가? -> 있으면 `null`
+- **web:** 운영 시간, 가격 등 구체적 사실이 결과 텍스트에 포함되어 있는가? -> 있으면 `null`
+
+**출력 형식 (JSON):**
 {
-  "rag_queries": ["부산 호텔 추천", "해운대 맛집"],
-  "web_queries": null,
-  "weather_queries": ["부산 내일 날씨"],
-  "reason": "숙소와 날씨 정보는 부족하여 추가 검색 필요"
+  "rag_queries": ["쿼리"] 또는 null,
+  "web_queries": ["쿼리"] 또는 null,
+  "weather_queries": ["쿼리"] 또는 null,
+  "reason": 짧은 이유
 }
-
-**쿼리 생성 규칙:**
-1. rag_queries: 장소, 숙박, 맛집, 관광 등
-2. web_queries: 운영 시간, 실시간 예약, 뉴스 등
-3. weather_queries: 날씨, 기온, 일출/일몰
-4. 해당 사항이 없으면 null 을 입력하세요.
 """
 
 VALIDATION_USER_PROMPT = """
@@ -51,41 +58,52 @@ weather 결과:
 {weather_results}
 """
 
-ROUTER_SYSTEM_PROMPT = """
-당신은 사용자의 질문을 rag, web, weather, direct 중 하나 이상으로 분류하는 라우터입니다.
+days = ["월", "화", "수", "목", "금", "토", "일"]
+now = datetime.now()
+day_of_week = days[now.weekday()]
 
-규칙:
-- 단순 인사, 대화 요약, 잡담은 direct
-- 날씨, 강수량, 일출/일몰 → weather
-- 음식점, 카페, 관광지, 숙박, 축제, 쇼핑, 체험 → rag
-- 운영시간, 교통시간, 최신 정보 → web
+current_time = f"{now.strftime('%Y년 %m월 %d일')} {day_of_week}요일"
+print(current_time)
 
-질문에 여러 주제가 있으면 각각 나눠 분류하세요.
-쿼리는 짧은 명사 형태로 작성하세요.
+ROUTER_SYSTEM_PROMPT = f"""
+오늘 날짜는 다음과 같습니다: {current_time}
+일주일은 다음 요일을 순서대로 포함합니다.: {days}
+당신은 사용자 질문을 [rag, web, weather, direct]로 분류하는 Router입니다.
+아래 규칙을 엄격히 준수하여 JSON을 생성하세요.
 
-반드시 JSON만 출력하세요.
-None 대신 null 사용.
+**★핵심 제약 사항 (위반 시 오답 처리):**
+1. **개수 제한:** 각 카테고리(주제) 당 **가장 정확한 '단 하나(1개)'의 쿼리**만 생성하세요.
+2. **중복 금지:** 같은 의미의 질문을 여러 번 쓰지 마세요. (유의어 나열 금지)
+3. **날씨 포맷:** weather_queries는 반드시 숫자 형식이어야 합니다.
 
-출력 형식:
-{
-  "rag_queries": [],
-  "web_queries": [],
-  "weather_queries": [],
+**분류 규칙:**
+1. **rag:** 장소, 숙박, 맛집, 명소 정보 -> 리스트에 **핵심 키워드 1개**만.
+2. **web:** 실시간 정보(교통편 시간표, 티켓 예매, 뉴스) -> 리스트에 **핵심 문장 1개**만.
+3. **weather:** 날씨/기온 -> (내일=1, 오늘=0, 이틀후=2) 형식.
+4. **direct:** 인사, 농담.
+
+**출력 예시 (반드시 이 형태를 따를 것):**
+User: "내일 부산 날씨랑 해운대 깨끗한 호텔 추천해주고 서울 가는 기차표 제일 빠른거 알려줘"
+Output:
+{{
+  "rag_queries": ["해운대 깨끗한 호텔"], 
+  "web_queries": ["서울행 부산 출발 기차표 최단시간"],
+  "weather_queries": [1],
   "direct": null,
-  "reason": "짧은 한 줄"
-}
+  "reason": 짧은 설명
+}}
 """
 
 class LangGraph:
     def __init__(self):
         llm = init_chat_model(
-            "solar-pro3",
-            model_provider="upstage",
+            "gpt-4o-mini",
+            # model_provider="upstage",
             temperature=0,
         )
 
-        BM25_PATH = "db/bm25"
-        DB_PATH = "db/chroma_db"
+        BM25_PATH = "../../db/bm25"
+        DB_PATH = "../../db/chroma_db"
 
         ragconfig = RagConfig(db_path=DB_PATH)
         rag = Rag(config=ragconfig)
@@ -266,7 +284,11 @@ class LangGraph:
 
         for query in queries:
             print(f"[Web] 다음을 검색중입니다... {query}")       
-            results = self.tavily.search(query=query, max_results=3)
+            results = self.tavily.search(
+                query=query, 
+                max_results=3,
+                search_depth="advanced"
+                )
             
             search_hits = results.get("results", []) if isinstance(results, dict) else results
 
@@ -274,7 +296,6 @@ class LangGraph:
                 title = r.get("title", "")
                 url = r.get("url", "")
                 snippet =  r.get("content") or r.get("snippet", "")
-                snippet = snippet[:200] # 자르기
                 if not url or url in existing_urls:
                     continue
                 web_results.append({
@@ -286,46 +307,36 @@ class LangGraph:
         return {"web_results": web_results}
     
     def weather_node(self, state: State):
-        queries = (
-            state.get("weather_queries")
-            or [state.get("query")]
-            or [state["messages"][-1].content]
-        )
-        print(f"[Weather]: 날씨 검색 중.. {queries}")
-        return {"weather_results": ["화창하네~"]}
+        days = state.get("weather_queries")
+        print(f"[Weather]: 날씨 검색 중.. {days}")
+        weather_results = []
+        for day in days:
+            if isinstance(day, int):
+                result = forecast_tool(city="부산", days=day)
+                print(f"[Weather] the weather is. .. {day} and {result}")
+                weather_results.append(result)
+            else:
+                print(f"[Weather] the model's answer is not in int...")
+                continue
+            
+        return {"weather_results": weather_results}
 
     # Answer Node
     def chatbot_node(self, state: State):
         print("[Chatbot]: 최종 답변 생성 중...")
         
-        # messages = state["messages"]
-        # query = state.get("query", "")
-        
-        # docs = state.get("documents", [])
-        # context_text = "\n\n".join([d["text"] for d in docs])
-        
-        # webs = state.get("web_results", [])
-        # web_text = "\n\n".join([f"{w['title']}: {w['snippet']}" for w in webs])
-        
-        # weather_results = state.get("weather_results", [])
-        # weather_text = "\n".join(weather_results)
-        
-        # 빠른 답변을 위한 자른 버전 todo delete it by yhkim
-        messages = state["messages"][-4:]
+        messages = state["messages"]
         query = state.get("query", "")
-
-        docs = state.get("documents", [])[:3]
-        context_text = "\n\n".join([d["text"][:500] for d in docs])
-
-        webs = state.get("web_results", [])[:3]
-        web_text = "\n\n".join([
-            f"{w['title']}: {w['snippet'][:150]}" for w in webs
-        ])
-
-        weather_results = state.get("weather_results", [])[:3]
+        
+        docs = state.get("documents", [])
+        context_text = "\n\n".join([d["text"] for d in docs])
+        
+        webs = state.get("web_results", [])
+        web_text = "\n\n".join([f"{w['title']}: {w['snippet']}" for w in webs])
+        
+        weather_results = state.get("weather_results", [])
         weather_text = "\n".join(weather_results)
-
-
+        
         system_prompt = f"""당신은 친절한 여행 가이드입니다.
     사용자의 질문에 대해 아래 [정보]를 바탕으로 답변하세요.
     정보가 없으면 답변하되, 진실된 정보만 답변하세요. 만들어낸 정보는 답변하지 않습니다.
@@ -413,14 +424,13 @@ class LangGraph:
         )
         
         for node in ["rag", "web", "weather"]:
-            workflow.add_edge(node, "chatbot") # chatbot -> validator
+            workflow.add_edge(node, "validator")
         
-        # todo change it by yhkim
-        # workflow.add_conditional_edges(
-        #     "validator",
-        #     self.route_nodes,
-        #     intermediates
-        # )
+        workflow.add_conditional_edges(
+            "validator",
+            self.route_nodes,
+            intermediates
+        )
 
         workflow.add_conditional_edges(
             "chatbot",        
@@ -432,7 +442,6 @@ class LangGraph:
         )
 
         workflow.add_edge("summarize", END)
-
         return workflow.compile(checkpointer=checkpointer)
     
     def run(self, message: str, thread_id: str):
