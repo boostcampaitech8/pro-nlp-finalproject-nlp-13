@@ -7,11 +7,11 @@ llm:
 wiki:
   lang: "ko"
   top_k: 5
-  max_length: 10000
+  max_length: 20000
   user_agent: "MyFreshQA/1.0 (sucruba7@example.com)"
 
 io:
-  input_csv: "data/sample_50.csv"    
-  output_csv: "result/output.csv"
+  input_csv: "data/ko-freshqa_2025_test.csv"    
+  output_csv: "result/submission.csv"
   question_col: "question"
   output_col: "model_response"
