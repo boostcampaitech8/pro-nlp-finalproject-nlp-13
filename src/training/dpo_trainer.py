@@ -57,8 +57,8 @@ def load_model_with_two_adapters(
                 f"SFT adapter가 {sft_adapter_path}에 존재하지 않습니다.\n"
                 "SFT 학습을 먼저하거나, config YAML 파일 경로를 확인하세요."
             )
-
-    print(f"\n --- Base Model 로딩 ---")      
+    print(f"\n ===== DPF Models 로딩 =====") 
+    print(f"\n  1. Base Model 로딩")      
     base_model = AutoModelForCausalLM.from_pretrained(
         model_cfg.model_name_or_path,
         device_map=model_cfg.device_map,
@@ -66,7 +66,7 @@ def load_model_with_two_adapters(
         use_cache=False,
     )
 
-    print("--- SFT 모델 로딩 ---")
+    print("\n   2. SFT 모델 로딩")
     model = PeftModel.from_pretrained(
         base_model,
         sft_adapter_path,
@@ -74,7 +74,7 @@ def load_model_with_two_adapters(
         adapter_name=train_adapter_name,
     )
 
-    print("--- Reference 모델 로딩 ---")
+    print("\n   3. Reference 모델 로딩")
     model.load_adapter(
         sft_adapter_path,
         is_trainable=False,
@@ -82,7 +82,7 @@ def load_model_with_two_adapters(
     )
 
     model.set_adapter(train_adapter_name)
-    print("\n --- 모델 로드 성공 ---")
+    print("\n !!!!! 모델 로드 성공 !!!!!")
     print(f"  - Train adapter: '{train_adapter_name}' (trainable)")
     print(f"  - Reference adapter: '{ref_adapter_name}' (frozen)")
     print("-" * 60 + "\n")
@@ -163,5 +163,3 @@ def build_dpo_trainer(
     )
 
     return trainer
-
-
