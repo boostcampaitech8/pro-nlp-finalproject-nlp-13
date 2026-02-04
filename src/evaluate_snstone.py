@@ -1,6 +1,8 @@
 import os
+import re
 import json
 import torch
+from pathlib import Path
 from dotenv import load_dotenv 
 from openai import OpenAI
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -14,22 +16,32 @@ SNS_CONVERSATION_JUDGE_PROMPT = """당신에게 '사용자 발화(user_message)'
 
 AI 응답은 실제 사람이 SNS에서 대화하는 것처럼 자연스럽고, 맥락에 맞으며, 대화를 이어가도록 유도하고, 과도하게 길지 않아야 합니다.
 
-평가는 아래 4가지 기준을 기반으로 각각 수행해야 합니다.
+평가는 아래 4가지 평가 기준을 기반으로 각각 수행해야 합니다.
 
 [평가 기준]
+1. 자연스러움 (naturalness) : AI 응답이 실제 SNS 사용자처럼 자연스러운 대화체를 사용하는지 평가합니다.
+    - 기계적이고 형식적인 문체가 아닌 구어체 표현 사용 여부
+    - SNS 대화에서 흔히 사용되는 말투, 어휘, 줄임말, 감정 표현 사용 여부 (예: "ㅋㅋ", "ㅠㅠ", "ㄹㅇ", "헐", "맞아", "진짜?", "그치" 등)
+    - 지나치게 설명적이거나 교과서적인 표현이 없는지
+    - 실제 사람이 대화에서 사용할 법한 문장 흐름인지
 
-1. 자연스러움 (naturalness)  
-- AI 특유의 기계적이고 형식적인 느낌이 제거되었는지 평가합니다.
+2. 맥락 적합성 (contextual_relevance) : AI 응답이 사용자 발화를 정확히 이해하고 자연스럽게 이어지는지 평가합니다.
+    - 사용자 감정, 상황, 의도를 적절히 반영했는지
+    - 이전 발화와 논리적으로 연결되는지
+    - 맥락과 무관한 일반적인 조언이나 정보 제공이 포함되지 않았는지
 
-2. 맥락 적합성 (contextual_relevance)  
-- 이전 사용자 발화를 이해하고 그 흐름을 자연스럽게 이어가는지 평가합니다.
+3. 참여 유도 (engagement) : AI 응답이 대화를 지속하려는 의도를 보이는지 평가합니다.
+    - 공감 표현 또는 감정 반응 포함 여부
+    - 자연스러운 질문 또는 반응을 통해 대화를 이어가려는 시도
+    - 상대방이 추가로 말하고 싶게 만드는 요소 존재 여부
+    - 일방적 정보 전달 형태인지 여부
 
-3. 참여 유도 (engagement)  
-- 공감 표현, 반응, 질문 등으로 대화를 지속하려는 요소가 있는지 평가합니다.
+4. 간결성 (conciseness) : AI 응답이 SNS 대화 특성에 맞게 짧고 핵심적인 형태로 작성되었는지 평가합니다.
+    - 응답 길이가 불필요하게 길지 않은지
+    - 한 번의 응답에 과도한 정보, 조언, 설명이 포함되지 않았는지
+    - SNS 대화에서 일반적으로 사용되는 짧은 문장 구조를 따르는지
 
-4. 간결성 (conciseness)  
-- SNS 대화 특성에 맞는 적절한 길이인지 평가합니다.
-
+핵심 메시지를 간단하고 직관적으로 전달하는지
 주의: 설명조, 보고서체, 비즈니스 이메일 말투는 낮은 점수를 부여하십시오.
 
 
@@ -50,16 +62,16 @@ AI 응답은 실제 사람이 SNS에서 대화하는 것처럼 자연스럽고, 
 최종 점수를 결정하기 전에 반드시 각 기준에 대해 충분히 추론하십시오.  
 '평가(Evaluation)' 필드에서 판단 근거를 상세히 작성하십시오.
 
-이후 아래 형식에 맞춰 답변하십시오.
+이후 아래 [출력 형식]에 반드시 맞춰 답변하십시오.
 
 
-
+[출력 형식]
 Feedback:::  
 Evaluation:
-- Naturalness: (근거 작성)
-- Contextual Relevance: (근거 작성)
-- Engagement: (근거 작성)
-- Conciseness: (근거 작성)
+- Naturalness: (근거 짧게 작성)
+- Contextual Relevance: (근거 짧게 작성)
+- Engagement: (근거 짧게 작성)
+- Conciseness: (근거 짧게 작성)
 
 Scores:
 - Naturalness: (1~5)
@@ -84,11 +96,16 @@ AI 응답: {ai_response}
 Feedback::: Evaluation:
 """
 
+CONFIG = {
+    "base_model_id" = "LGAI-EXAONE/EXAONE-4.0-1.2B",
+    "adapter_path" = "/data/ephemeral/pro-nlp-finalproject-nlp-13/src/models/checkpoint-16239",
+    "data_path" = "/data/ephemeral/pro-nlp-finalproject-nlp-13/data/persona_data/dpo_test_dataset.json",
+}
 
 class SNSConversationJudge:
     def __init__(self, api_key: str):
         self.client = OpenAI(api_key=api_key, base_url="https://api.upstage.ai/v1")
-        self.model = "solar-pro"
+        self.model = "solar-pro3"
 
     def judge(self, user_message, ai_response):
         prompt = SNS_CONVERSATION_JUDGE_PROMPT.format(
@@ -98,7 +115,7 @@ class SNSConversationJudge:
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": "You are a strict SNS conversation evaluator."},
+                {"role": "system", "content": "당신은 한국어 SNS 대화의 자연스러움을 판별하는 엄격한 언어 전문가입니다. SNS 대화 특유의 구어체, 말투, 문맥적 흐름 등을 완벽하게 이해하고 평가합니다."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0,
@@ -126,25 +143,19 @@ def gen_reply(user_input, tokenizer, model):
     return reply.replace("[|endofturn|]", "").strip()
 
 def main():
-    # 1. 경로 설정
-    base_model_id = "LGAI-EXAONE/EXAONE-4.0-1.2B"
-    adapter_path = "/data/ephemeral/pro-nlp-finalproject-nlp-13/src/models/exaone_dpo/final_model/policy"
-    data_path = "/data/ephemeral/pro-nlp-finalproject-nlp-13/data/persona_data/AiHub_dpo_dataset.json"
-
-    # 2. 데이터 로드 (eval 내의 prompt 추출)
     print(f"📂 데이터 로드 중: {data_path}")
-    with open(data_path, 'r', encoding='utf-8') as f:
+    with open(CONFIG["data_path"], 'r', encoding='utf-8') as f:
         full_data = json.load(f)
 
-    # 'eval' 키 안의 리스트에서 'prompt'만 가져오기
+
     test_prompts = [item['prompt'] for item in full_data.get('eval', [])]
-    test_prompts = test_prompts[:10]
+    test_prompts = test_prompts[:50]
     if not test_prompts:
         print("⚠️ 평가 데이터(prompt)를 찾을 수 없습니다.")
         return
 
-    # 3. 모델 로드
-    print("🚀 EXAONE DPO 모델 로딩 중...")
+
+    print("===== 모델 로딩 =====")
     tokenizer = AutoTokenizer.from_pretrained(base_model_id, trust_remote_code=True)
     base_model = AutoModelForCausalLM.from_pretrained(
         base_model_id, torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True
@@ -152,14 +163,27 @@ def main():
     model = PeftModel.from_pretrained(base_model, adapter_path)
     model.eval()
 
-    # 4. 평가 실행
+
     judge = SNSConversationJudge(api_key=API_KEY)
     
     print("\n" + "="*50)
-    print(f"🎯 AiHub DPO Eval 데이터 평가 시작 (총 {len(test_prompts)}개)")
+    print(f"===== AiHub DPO Eval 데이터 평가 시작 (총 {len(test_prompts)}개)")
     print("="*50 + "\n")
 
-    for i, user_msg in enumerate(test_prompts):
+
+    output_file = Path('sft_acc.json')
+
+    # 기존 파일이 있으면 로드해서 이어하기
+    if output_file.exists():
+        with open(output_file, "r", encoding="utf-8") as f:
+            results = json.load(f)
+        start_idx = len(results)
+        print(f"🔄 기존 데이터를 찾았습니다. {start_idx + 1}번째부터 재개합니다.")
+    else:
+        results = []
+        start_idx = 0
+
+    for i, user_msg in enumerate(test_prompts[start_idx:], start=start_idx):
         print(f"[{i+1}/{len(test_prompts)}] 평가 진행 중...")
         
         # 모델 답변 생성
@@ -169,10 +193,69 @@ def main():
         evaluation_result = judge.judge(user_msg, generated_res)
         
         # 결과 출력
-        print(f"\n💬 User: {user_msg}")
-        print(f"🤖 DPO Model: {generated_res}")
-        print(f"📝 {evaluation_result}")
-        print("-" * 40)
+        # print(f"\n💬 User: {user_msg}")
+        # print(f"🤖 DPO Model: {generated_res}")
+        # print(f"📝 {evaluation_result}")
+        # print("-" * 40)
+
+        patterns = {
+            "naturalness": r"Naturalness.*:\s*(\d)",
+            "contextual_relevance": r"Contextual Relevance.*:\s*(\d)",
+            "engagement": r"Engagement.*:\s*(\d)",
+            "conciseness": r"Conciseness.*:\s*(\d)",
+            "total_rating": r"Total rating.*:\s*(\d)"
+        }
+    
+        current_result = {
+            "id": i + 1,
+            "prompt": user_msg,
+            "response": generated_res,
+            "raw_evaluation": evaluation_result, 
+            "scores": {}
+        }
+        
+        for key, pattern in patterns.items():
+            match = re.search(pattern, evaluation_result)
+            if match:
+                current_result["scores"][key] = int(match.group(1))
+
+        results.append(current_result)
+
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=4, ensure_ascii=False)
+
+    dpo_metrics = calculate_metrics_100(results) # 현재 for문으로 모은 데이터
+
+    print("=== 모델 성능 평가 결과 (100점 만점) ===")
+    print(f"{'Metric':<25} | {'Score':<10}")
+    print("-" * 40)
+    for metric, score in dpo_metrics.items():
+        print(f"{metric:<25} | {score:>10.2f}")
+    
+
+def calculate_metrics_100(results_list):
+    # 계산할 지표 설정
+    metrics = ["naturalness", "contextual_relevance", "engagement", "conciseness", "total_rating"]
+    
+    # 누적 점수와 개수를 담을 딕셔너리
+    sum_scores = {m: 0 for m in metrics}
+    count_scores = {m: 0 for m in metrics}
+    
+    for res in results_list:
+        scores = res.get("scores", {})
+        for m in metrics:
+            if m in scores:
+                # 5점 만점 데이터를 20을 곱해 100점 만점으로 변환
+                sum_scores[m] += scores[m] * 20
+                count_scores[m] += 1
+                
+    # 평균 계산
+    avg_reports = {}
+    for m in metrics:
+        avg_reports[m] = sum_scores[m] / count_scores[m] if count_scores[m] > 0 else 0
+        
+    return avg_reports
+
 
 if __name__ == "__main__":
     main()
