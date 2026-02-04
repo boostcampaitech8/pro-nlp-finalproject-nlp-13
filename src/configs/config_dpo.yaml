@@ -1,10 +1,10 @@
 dpo:
-  sft_adapter_path: "src/models/checkpoint-16239"
+  sft_adapter_path: "src/models/qwen_sft"
 
   trainer:
-    output_dir: "src/models/exaone_dpo"
+    output_dir: "src/models/qwen_dpo"
 
-    num_train_epochs: 10
+    num_train_epochs: 3
     per_device_train_batch_size: 4
     per_device_eval_batch_size: 2
     gradient_accumulation_steps: 4
@@ -22,9 +22,9 @@ dpo:
 
     eval_strategy: "steps"
     save_strategy: "steps"
-    logging_steps: 20
-    eval_steps: 20
-    save_steps: 60
+    logging_steps: 100
+    eval_steps: 100
+    save_steps: 200
 
     load_best_model_at_end: true
     metric_for_best_model: "eval_rewards/accuracies"
@@ -40,8 +40,7 @@ dpo:
     seed: 42
 
   data:
-    train_path: "data/persona_data/AiHub_dpo_dataset.json"
-    eval_path: "./data/dpo_eval.jsonl"
+    train_path: "data/persona_data/dpo_dataset.json"
     seed: 42
     csv_dir: "./data/dpo_outputs"
     margin_threshold: 0.995
@@ -49,7 +48,7 @@ dpo:
 
 
 model:
-  model_name_or_path: "LGAI-EXAONE/EXAONE-4.0-1.2B"
+  model_name_or_path: "Qwen/Qwen3-4B"
   compute_dtype: "float16"
   device_map: "auto"
   use_gradient_checkpointing: true
@@ -58,7 +57,7 @@ model:
 
 wandb:
   enabled: true
-  run_name: "exaone_dpo_normal"
-  project_name: "DPO-exaone-normal"
+  run_name: "qwen_dpo_10000"
+  project_name: "DPO-qwen-normal"
   entity: "pro-nlp-final-13"
   dir: "./wandb"
