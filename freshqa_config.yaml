@@ -11,7 +11,7 @@ wiki:
   user_agent: "MyFreshQA/1.0 (sucruba7@example.com)"
 
 io:
-  input_csv: "data/ko-freshqa_2025_dev.csv"    
+  input_csv: "data/sample_50.csv"    
   output_csv: "result/output.csv"
   question_col: "question"
   output_col: "model_response"
