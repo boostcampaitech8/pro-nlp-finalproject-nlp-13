@@ -16,28 +16,22 @@ from dotenv import load_dotenv
 load_dotenv()
 
 VALIDATION_SYSTEM_PROMPT = """
-당신은 부족한 정보를 파악하여 검색 쿼리를 생성하는 Query Generator입니다.
-제공된 [사용자 질문]과 [검색 결과(rag, web, weather)]를 비교하여, 답변에 필요한 정보가 충분한지 판단하세요.
-정보가 부족하다면 아래 규칙에 따라 추가 쿼리를 생성하고, JSON 형식으로만 출력하세요.
+당신은 Query Generator입니다. 사용자의 질문과 검색 결과를 비교하여 추가 정보가 필요한지 판단하세요.
+결과는 **반드시** 아래 JSON 형식으로만 출력해야 합니다. (마크다운, 설명 금지)
+
+**출력 예시:**
+{
+  "rag_queries": ["부산 호텔 추천", "해운대 맛집"],
+  "web_queries": null,
+  "weather_queries": ["부산 내일 날씨"],
+  "reason": "숙소와 날씨 정보는 부족하여 추가 검색 필요"
+}
 
 **쿼리 생성 규칙:**
-1. **중복 제거:** 한 주제당 하나의 핵심 명사형 질문만 생성하세요. (예: "부산 호텔", "부산 숙소" 중 하나만 사용)
-2. **카테고리 분류:**
-   - **weather_queries:** 날씨, 기온, 강수량, 일출/일몰 등.
-   - **rag_queries:** 장소, 숙박(호텔/모텔 등), 음식점, 카페, 관광지, 축제, 쇼핑, 액티비티.
-   - **web_queries:** rag에 없는 정보, 최신성 정보(운영 시간, 실시간 티켓/기차표 시간 등).
-
-**출력 형식:**
-- 설명, 마크다운, 특수기호를 절대 포함하지 마세요.
-- 오직 아래 JSON 데이터만 반환하세요.
-- 쿼리가 없는 항목은 null을 사용하세요.
-
-{{
-  "rag_queries": ["질문1", "질문2"] 또는 null,
-  "web_queries": ["질문1", "질문2"] 또는 null,
-  "weather_queries": ["질문1", "질문2"] 또는 null,
-  "reason": "부족한 정보에 대한 짧은 이유"
-}}
+1. rag_queries: 장소, 숙박, 맛집, 관광 등
+2. web_queries: 운영 시간, 실시간 예약, 뉴스 등
+3. weather_queries: 날씨, 기온, 일출/일몰
+4. 해당 사항이 없으면 null 을 입력하세요.
 """
 
 VALIDATION_USER_PROMPT = """
@@ -84,6 +78,7 @@ class LangGraph:
         llm = init_chat_model(
             "solar-pro3",
             model_provider="upstage",
+            temperature=0,
         )
 
         BM25_PATH = "../../db/bm25"
@@ -149,7 +144,7 @@ class LangGraph:
     def validate_node(self, state: State):
         print(f"[Validate] 지금까지 모은 정보를 검증합니다...")
         retried_count = state.get("retried_count", 0)
-        if retried_count > 2: 
+        if retried_count > 1: 
             return {
                 "rag_queries": None,
                 "web_queries": None,
@@ -286,7 +281,7 @@ class LangGraph:
             or [state.get("query")]
             or [state["messages"][-1].content]
         )
-        print("[Weather]: 날씨 검색 중.. {queries}")
+        print(f"[Weather]: 날씨 검색 중.. {queries}")
         return {"weather_results": ["화창하네~"]}
 
     # Answer Node
@@ -295,7 +290,6 @@ class LangGraph:
         
         messages = state["messages"]
         query = state.get("query", "")
-        # route = state.get("route", "direct")
         
         docs = state.get("documents", [])
         context_text = "\n\n".join([d["text"] for d in docs])
@@ -322,7 +316,11 @@ class LangGraph:
         
         return {
             "final_answer": response.content,
-            "messages": [response] 
+            "messages": [response],
+            # 초기화
+            "documents": [],
+            "web_results": [],
+            "weather_results": [],
         }
 
     def summarize_node(self, state: State):
@@ -389,13 +387,13 @@ class LangGraph:
         )
         
         for node in ["rag", "web", "weather"]:
-            workflow.add_edge(node, "validator") 
+            workflow.add_edge(node, "chatbot") # chatbot -> validator
         
-        workflow.add_conditional_edges(
-            "validator",
-            self.route_nodes,
-            intermediates
-        )
+        # workflow.add_conditional_edges(
+        #     "validator",
+        #     self.route_nodes,
+        #     intermediates
+        # )
 
         workflow.add_conditional_edges(
             "chatbot",        
