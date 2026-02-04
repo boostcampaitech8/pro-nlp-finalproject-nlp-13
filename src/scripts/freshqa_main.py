@@ -52,54 +52,67 @@ def main():
         df[output_col] = ""
 
     print(f"Start Processing {len(df)} questions...")
-
-    for row_idx in tqdm(df.index, desc="FreshQA"):
-        question_text = str(df.at[row_idx, question_col])
-
-        _, route_obj = route_question(
-            question=question_text,
-            today=today,
-            system_prompt=SYSTEM_PROMPT_ROUTER,
-            user_prompt=USER_PROMPT_ROUTER,
-            llm_call=llm_call,
-        )
-
-        answer_type = route_obj.answer_type
-        
-        # C,D
-        if answer_type in ("C", "D"):
-            answer_text = route_obj.answer or "정보 없음"
-            df.at[row_idx, output_col] = answer_text
-            continue
-        
-        # A,B
-        keyword_obj = extract_keyword(
-            question=question_text,
-            today=today,
-            system_prompt=SYSTEM_PROMPT_KEYWORD,
-            user_prompt=USER_PROMPT_KEYWORD,
-            llm_call=llm_call,
-        )
-        
-        keyword_text = getattr(keyword_obj, "query", None) or question_text
-        
-        wiki_result = wiki.get_wiki_text(keyword_text)
-        if not wiki_result:
-            df.at[row_idx, output_col] = "정보 없음"
-            continue
-
-        answer_text = retrieve_answer(
-            question=question_text,
-            today=today,
-            wiki_text=wiki_result.text,
-            llm_call=llm_call,
-        )
-
-        df.at[row_idx, output_col] = answer_text
-
     os.makedirs(os.path.dirname(output_csv) or ".", exist_ok=True)
+
+    for i, row_idx in enumerate(tqdm(df.index, desc="FreshQA")):
+            question_text = str(df.at[row_idx, question_col])
+
+            try:
+                _, route_obj = route_question(
+                    question=question_text,
+                    today=today,
+                    system_prompt=SYSTEM_PROMPT_ROUTER,
+                    user_prompt=USER_PROMPT_ROUTER,
+                    llm_call=llm_call,
+                )
+
+                answer_type = route_obj.answer_type
+                
+                # C, D
+                if answer_type in ("C", "D"):
+                    answer_text = route_obj.answer or "정보 없음"
+                    df.at[row_idx, output_col] = answer_text
+                
+                #  A, B
+                else:
+                    keyword_res = extract_keyword(
+                        question=question_text,
+                        today=today,
+                        system_prompt=SYSTEM_PROMPT_KEYWORD,
+                        user_prompt=USER_PROMPT_KEYWORD,
+                        llm_call=llm_call,
+                    )
+                    
+                    if isinstance(keyword_res, tuple):
+                        keyword_obj = keyword_res[1]
+                    else:
+                        keyword_obj = keyword_res
+
+                    keyword_text = getattr(keyword_obj, "query", None) or question_text
+                    
+                    wiki_result = wiki.get_wiki_text(keyword_text)
+                    
+                    if not wiki_result:
+                        df.at[row_idx, output_col] = "정보 없음"
+                    else:
+                        answer_text = retrieve_answer(
+                            question=question_text,
+                            today=today,
+                            wiki_text=wiki_result.text,
+                            llm_call=llm_call,
+                        )
+                        df.at[row_idx, output_col] = answer_text
+
+            except Exception as e:
+                print(f"\n[Error at row {row_idx}] {e}")
+                df.at[row_idx, output_col] = "Error"
+
+            if (i + 1) % 10 == 0:
+                df.to_csv(output_csv, index=False)
+                print(f"Saved: {output_csv}")
+    
     df.to_csv(output_csv, index=False)
-    print(f"Saved: {output_csv}")
+    print(f"Final saved: {output_csv}")
 
 
 def load_config(path: str) -> Tuple[LLMConfig, WikiConfig, Dict[str, Any]]:
