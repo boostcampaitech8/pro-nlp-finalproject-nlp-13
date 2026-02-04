@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List, Literal, Optional
 from typing_extensions import Annotated, NotRequired, TypedDict
 from pydantic import BaseModel, Field
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
 
-Route = Literal["direct", "rag", "web", "rag-web"]
+Route = Literal["direct", "rag", "web", "weather"]
 
 class RagDocument(TypedDict):
     doc_id: NotRequired[str]          
@@ -25,8 +25,13 @@ class WebResult(TypedDict):
 
 # Router
 class RouterDecision(BaseModel):
-    route: Literal["direct", "rag", "web", "rag-web"] = Field(description="다음 실행할 단계")
+    # route: Literal["direct", "rag", "web", "evaluator"] = Field(description="다음 실행할 단계")
+    rag_queries: Optional[List[str]] = None
+    web_queries: Optional[List[str]] = None
+    weather_queries: Optional[List[str]] = None
+    direct: Optional[str] = None
     route_reason: str = Field(description="선택한 이유")
+
 
 # Citation
 class Citation(TypedDict):
@@ -51,19 +56,23 @@ class State(TypedDict):
     query: str
     user_info: NotRequired[Dict]
     
-    draft_answer: NotRequired[str]
+    # 라우팅 결정 todo delete it 
+    route: NotRequired[List[Route]]
     
-    sufficient: NotRequired[bool]
-    next_route: NotRequired[str]
-
-
     # 라우팅 결정
-    route: NotRequired[Route]
-    route_reason: NotRequired[str] 
+    rag_queries: Optional[List[str]] = None
+    web_queries: Optional[List[str]] = None
+    weather_queries: Optional[List[str]] = None
+    direct: Optional[str] = None
+    route_reason: NotRequired[str]
+    
+    # 재검색 시도
+    retried_count: NotRequired[int]
 
     # 검색 결과
     documents: NotRequired[List[RagDocument]]
     web_results: NotRequired[List[WebResult]]
+    weather_results: NotRequired[List[str]]
 
     # 출력
     final_answer: NotRequired[str]

@@ -1,7 +1,6 @@
 import streamlit as st
 import time
 import uuid
-import google.generativeai as genai
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 from src.graph.graph import LangGraph
@@ -112,7 +111,7 @@ with st.sidebar:
     
     if api_key_input:
         st.session_state.api_key = api_key_input
-        genai.configure(api_key=st.session_state.api_key)
+        # genai.configure(api_key=st.session_state.api_key)
         
         st.success("API 키가 적용되었습니다!")
     else:

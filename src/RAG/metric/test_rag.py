@@ -17,11 +17,18 @@ from ragas.llms import llm_factory
 from ragas.embeddings import OpenAIEmbeddings as RagasOpenAIEmbeddings
 from ragas import experiment
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
+from src.rag.rag import Rag, RagConfig
+from src.rag.hybrid_retriever import HybridRetriever, RetrieverConfig
+
 CONFIG = {
-    "testset_path": "/Users/hanjiseok/pro-nlp-finalproject-nlp-13/singlehop_testset_1.json",
-    "chroma_db_path": "/Users/hanjiseok/pro-nlp-finalproject-nlp-13/notebooks/Han/rag_metric/vectorDB/chroma_db",
+    "testset_path": "data/singlehop_testset.json",
+    "chroma_db_path": "db/chroma_db",
     "collection_name": "test",
-    "embedding_model": "text-embedding-3-small",
+    "embedding_model": "solar-embedding-1-large",
     "llm_model": "gpt-4o-mini",
     "retrieval_k": 5
 }
@@ -34,15 +41,13 @@ async def main():
     llm = llm_factory(CONFIG["llm_model"], client=async_client)
     embeddings = OpenAIEmbeddings(model=CONFIG["embedding_model"])
 
-    vector_db = Chroma(
-        persist_directory=CONFIG["chroma_db_path"],
-        embedding_function=embeddings,
-        collection_name=CONFIG["collection_name"]
-    )
-    retriever = vector_db.as_retriever(
-        search_type="similarity",
-        search_kwargs={"k": CONFIG["retrieval_k"]}
-    )
+    BM25_PATH = "db/bm25"
+    DB_PATH = "db/chroma_db"
+    ragconfig = RagConfig(db_path=DB_PATH)
+    rag = Rag(config=ragconfig)
+    db = rag.load()
+    config = RetrieverConfig(db=db, pickle_path=BM25_PATH)
+    retriever = HybridRetriever(config=config)
 
     if not os.path.exists(CONFIG["testset_path"]):
         print(f"❌ 파일을 찾을 수 없습니다: {CONFIG['testset_path']}")
@@ -106,7 +111,7 @@ def prepare_rag_dataset(samples: List[Dict], retriever: Any) -> List[Dict]:
         query = sample["user_input"]
         
         # 검색 수행
-        retrieved_docs = retriever.invoke(query)
+        retrieved_docs = retriever.retrieve(query)
         retrieved_contexts = [doc.page_content for doc in retrieved_docs]
         
         processed_data.append({
