@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import os
 from states import State, RouterDecision
 from typing import Literal, List
 from langchain_core.messages import SystemMessage, RemoveMessage, HumanMessage
 from langchain.chat_models import init_chat_model
 from langgraph.graph import StateGraph, START, END
 from langchain_core.prompts import ChatPromptTemplate
+from langgraph.checkpoint.memory import MemorySaver
 
-from src.rag.rag import Rag, RagConfig
-from src.rag.hybrid_retriever import HybridRetriever, RetrieverConfig
 from langchain_openai import OpenAIEmbeddings
 from tavily import TavilyClient
 from dotenv import load_dotenv
+
+from src.rag.rag import Rag, RagConfig
+from src.rag.hybrid_retriever import HybridRetriever, RetrieverConfig
 
 load_dotenv()
 
@@ -81,8 +84,8 @@ class LangGraph:
             temperature=0,
         )
 
-        BM25_PATH = "../../db/bm25"
-        DB_PATH = "../../db/chroma_db"
+        BM25_PATH = "db/bm25"
+        DB_PATH = "db/chroma_db"
 
         ragconfig = RagConfig(db_path=DB_PATH)
         rag = Rag(config=ragconfig)
@@ -91,17 +94,21 @@ class LangGraph:
         retriever = HybridRetriever(config=config)
 
         try:
-            tavily = TavilyClient(api_key="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")
+            api_key = os.getenv("TAVILY_API_KEY")
+            tavily = TavilyClient(api_key=api_key)
         except Exception:
             print("Tavily API 키가 없어서 웹 검색도 가짜(Mock)로 설정합니다.")
             class MockTavily:
                 def search(self, query, max_results=5):
                     return [{"title": "테스트 뉴스", "url": "http://test.com", "content": "웹 검색 결과 예시입니다."}]
             tavily = MockTavily()
+            
+        memory = MemorySaver()
 
         self.llm = llm
         self.retriever = retriever
         self.tavily = tavily
+        self.app = self.build_graph(checkpointer=memory)
         
     # nodes
     def router_node(self, state: State):
@@ -115,7 +122,10 @@ class LangGraph:
             HumanMessage(content=question),
         ]
         
+        print(f"[Router] {ROUTER_SYSTEM_PROMPT}\n question")
+        
         try:
+            print("[Router] model is thinking...")
             decision = structured_llm.invoke(messages)
             rag_queries = decision.rag_queries
             web_queries = decision.web_queries
@@ -286,19 +296,35 @@ class LangGraph:
 
     # Answer Node
     def chatbot_node(self, state: State):
-        print("[Chatbot]: 최종 답변 생성  중...")
+        print("[Chatbot]: 최종 답변 생성 중...")
         
-        messages = state["messages"]
+        # messages = state["messages"]
+        # query = state.get("query", "")
+        
+        # docs = state.get("documents", [])
+        # context_text = "\n\n".join([d["text"] for d in docs])
+        
+        # webs = state.get("web_results", [])
+        # web_text = "\n\n".join([f"{w['title']}: {w['snippet']}" for w in webs])
+        
+        # weather_results = state.get("weather_results", [])
+        # weather_text = "\n".join(weather_results)
+        
+        # 빠른 답변을 위한 자른 버전 todo delete it by yhkim
+        messages = state["messages"][-4:]
         query = state.get("query", "")
-        
-        docs = state.get("documents", [])
-        context_text = "\n\n".join([d["text"] for d in docs])
-        
-        webs = state.get("web_results", [])
-        web_text = "\n\n".join([f"{w['title']}: {w['snippet']}" for w in webs])
-        
-        weather_results = state.get("weather_results", [])
+
+        docs = state.get("documents", [])[:3]
+        context_text = "\n\n".join([d["text"][:500] for d in docs])
+
+        webs = state.get("web_results", [])[:3]
+        web_text = "\n\n".join([
+            f"{w['title']}: {w['snippet'][:150]}" for w in webs
+        ])
+
+        weather_results = state.get("weather_results", [])[:3]
         weather_text = "\n".join(weather_results)
+
 
         system_prompt = f"""당신은 친절한 여행 가이드입니다.
     사용자의 질문에 대해 아래 [정보]를 바탕으로 답변하세요.
@@ -311,7 +337,7 @@ class LangGraph:
     """
         
         prompt_messages = [SystemMessage(content=system_prompt)] + messages
-        
+        print(f"[CHATBOT] 정리하는 prompt: {system_prompt}")
         response = self.llm.invoke(prompt_messages)
         
         return {
@@ -389,6 +415,7 @@ class LangGraph:
         for node in ["rag", "web", "weather"]:
             workflow.add_edge(node, "chatbot") # chatbot -> validator
         
+        # todo change it by yhkim
         # workflow.add_conditional_edges(
         #     "validator",
         #     self.route_nodes,
@@ -407,3 +434,10 @@ class LangGraph:
         workflow.add_edge("summarize", END)
 
         return workflow.compile(checkpointer=checkpointer)
+    
+    def run(self, message: str, thread_id: str):
+        config = {"configurable": {"thread_id": thread_id}}
+        inputs = {"messages": [HumanMessage(content=message)]}
+        
+        result = self.app.invoke(inputs, config=config)
+        return result.get("final_answer", "답변을 생성하지 못했습니다.")
