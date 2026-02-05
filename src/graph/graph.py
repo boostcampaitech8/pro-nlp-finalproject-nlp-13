@@ -61,7 +61,6 @@ now = datetime.now()
 day_of_week = days[now.weekday()]
 
 current_time = f"{now.strftime('%Y년 %m월 %d일')} {day_of_week}요일"
-print(current_time)
 
 ROUTER_SYSTEM_PROMPT = f"""
 오늘 날짜는 다음과 같습니다: {current_time}
@@ -92,6 +91,26 @@ Output:
 }}
 """
 
+CHATBOT_PROMPT = """
+당신은 친절한 여행 가이드입니다.
+사용자의 질문에 대해 아래 [정보]를 바탕으로 답변하세요.
+정보가 없으면 답변하되, 진실된 정보만 답변하세요. 만들어낸 정보는 답변하지 않습니다.
+출력은 무조건 줄글 형식으로 줍니다. json 이나 마크다운 형식으로 절대 주지 마십시오.
+현재 질문은 다음과 같습니다: {query}
+
+[참고 문서]\n{context_text}\n
+[인터넷 검색 결과]\n{web_text}\n
+[날씨]\n{weather_text}
+"""
+
+SUMMARIZE_PROMPT = """
+지금까지의 요약: {summary}
+새로운 대화:
+{messages}
+
+위 내용을 바탕으로 전체 대화 내용을 짧게 요약해줘.
+"""
+
 class LangGraph:
     def __init__(self):
         llm = init_chat_model(
@@ -114,7 +133,8 @@ class LangGraph:
         db = rag.load()
         config = RetrieverConfig(db=db, pickle_path=BM25_PATH)
         retriever = HybridRetriever(config=config)
-
+        
+        #                 todo 타빌리 따로 빼던가?
         try:
             api_key = os.getenv("TAVILY_API_KEY")
             tavily = TavilyClient(api_key=api_key)
@@ -144,10 +164,11 @@ class LangGraph:
             SystemMessage(content=ROUTER_SYSTEM_PROMPT),
             HumanMessage(content=question),
         ]
-        
+        # todo delete it
         print(f"[Router] {ROUTER_SYSTEM_PROMPT}\n question")
         
         try:
+                    # todo delete it
             print("[Router] model is thinking...")
             decision = structured_llm.invoke(messages)
             rag_queries = decision.rag_queries
@@ -163,6 +184,7 @@ class LangGraph:
             direct = question
             reason = f"Router fallback due to error: {type(e).__name__}"
             
+                # todo delete it
         print(f"""[Router] Router analyzed the question. The result:\n[Rag]\n{rag_queries}\n[Web]\n{web_queries}\n[Weather]\n{weather_queries}\n[Direct]\n{direct}""")
 
         return {
@@ -197,6 +219,7 @@ class LangGraph:
             SystemMessage(content=VALIDATION_SYSTEM_PROMPT),
             HumanMessage(content=user_prompt),
         ]
+        # todo delete it 
         print(f"[Validate] the processing..: \n {VALIDATION_SYSTEM_PROMPT}")
         print(f"[Validate] the processing..: \n {user_prompt}")
         print("--------------------------------------------")        
@@ -212,6 +235,7 @@ class LangGraph:
             web_queries = None
             weather_queries = None
             
+        # todo delete it
         print(f"""[Validator] Validator make another query. The result:\n[Rag]\n{rag_queries}\n[Web]\n{web_queries}\n[Weather]\n{weather_queries}""")
             
         if not rag_queries and not web_queries and not weather_queries:
@@ -319,9 +343,11 @@ class LangGraph:
         for day in days:
             if isinstance(day, int):
                 result = forecast_tool(city="부산", days=day)
+                # todo delete it
                 print(f"[Weather] the weather is. .. {day} and {result}")
                 weather_results.append(result)
             else:
+                                # todo delete it
                 print(f"[Weather] the model's answer is not in int...")
                 continue
             
@@ -342,20 +368,16 @@ class LangGraph:
         
         weather_results = state.get("weather_results", [])
         weather_text = "\n".join(weather_results)
-        
-        system_prompt = f"""당신은 친절한 여행 가이드입니다.
-    사용자의 질문에 대해 아래 [정보]를 바탕으로 답변하세요.
-    정보가 없으면 답변하되, 진실된 정보만 답변하세요. 만들어낸 정보는 답변하지 않습니다.
-    출력은 무조건 줄글 형식으로 줍니다. json 이나 마크다운 형식으로 절대 주지 마십시오.
-    현재 질문은 다음과 같습니다: {query}
-    
-    [참고 문서]\n{context_text}
-    [인터넷 검색 결과]\n{web_text}
-    [날씨]\n{weather_text}
-    """
-        
-        prompt_messages = [SystemMessage(content=system_prompt)] + messages
-        print(f"[CHATBOT] 정리하는 prompt: {system_prompt}")
+        prompt = CHATBOT_PROMPT.format(
+            query=query,
+            context_text=context_text,
+            web_text=web_text,
+            weather_text=weather_text
+        )
+        prompt_messages = [SystemMessage(content=prompt)] + messages
+                        # todo delete it
+
+        print(f"[CHATBOT] 정리하는 prompt: {prompt}")
         response = self.llm.invoke(prompt_messages)
         
         return {
@@ -368,14 +390,10 @@ class LangGraph:
         messages = state["messages"]
 
         if len(messages) > 6:
-            prompt = f"""
-            지금까지의 요약: {summary}
-            새로운 대화:
-            {messages}
-            
-            위 내용을 바탕으로 전체 대화 내용을 짧게 요약해줘.
-            """
-
+            prompt = SUMMARIZE_PROMPT.format(
+                summary=summary,
+                messages=messages
+            )
             response = self.summerized_llm.invoke(prompt)
             new_summary = response.content
 
