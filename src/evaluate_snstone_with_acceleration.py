@@ -216,6 +216,7 @@ async def main_async():
     print(f"\n===== 배치 응답 생성 중 (총 {len(remaining_prompts)}개)... =====")
     start_time = time.time()
     generated_responses = generate_batch(remaining_prompts)
+    print(f"generated_responses: {generated_responses}")
     gen_time = time.time() - start_time
     print(f"===== 응답 생성 완료 ({gen_time:.2f}초) =====")
 
@@ -287,7 +288,7 @@ def generate_batch(user_inputs: List[str]) -> List[str]:
             text = text.split('</think>')[-1].strip()
         
         elif '<think>' in text:
-            text = text.split('<think>')[0].strip()
+            text = text.split('<think>')[-1].strip()
 
         text = re.sub(r'\[\|.*', '', text)
         responses.append(text.strip())
