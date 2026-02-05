@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from states import State, RouterDecision
 from typing import List
+from openai import OpenAI
 from langchain_core.messages import SystemMessage, RemoveMessage, HumanMessage
 from langchain.chat_models import init_chat_model
 from langgraph.graph import StateGraph, START, END
@@ -114,12 +115,15 @@ SUMMARIZE_PROMPT = """
 class LangGraph:
     def __init__(self):
         llm = init_chat_model(
-            model="dpo-final-policy",      # 1. --served-model-name에 넣은 이름과 일치해야 함
-            model_provider="openai",       # 2. vLLM은 openai 제공자를 사용
-            base_url="http://198.18.13.161:8080/v1", # 3. 설정하신 포트 8080 확인
-            api_key="none",                # 로컬은 아무 값이나 입력
+            "gpt-4o-mini",
+            # model_provider="upstage",
             temperature=0,
         )
+
+        # self.chatbot = OpenAI(
+        #     base_url="http://localhost:8080/v1", # 3. 설정하신 포트 8080 확인
+        #     api_key="none",                # 로컬은 아무 값이나 입력
+        # )
         
         summerized_llm = init_chat_model(
             "solar-mini",
@@ -289,7 +293,7 @@ class LangGraph:
                 if doc_id in existing_ids:
                     continue
                 
-            rag_results.extend(documents)
+                rag_results.extend(documents)
 
         return {"documents": rag_results, "route": "rag"}
 
@@ -381,11 +385,27 @@ class LangGraph:
 
         print(f"[CHATBOT] 정리하는 prompt: {prompt}")
         response = self.llm.invoke(prompt_messages)
-        
+        # completion = self.chatbot.chat.completions.create(
+        #     model="dpo-final-policy",
+        #     messages=[
+        #         {
+        #             "role": "user",
+        #             "content": [
+        #                 {"type": "text", "text": prompt},
+        #             ],
+        #         },
+        #     ],
+        # )
+        # print(f"completion.choices[0].message: {completion.choices[0].message.content}")
         return {
             "final_answer": response.content,
             "messages": [response],
         }
+        # from langchain_core.messages import AIMessage
+        # return {
+        #     "final_answer": completion.choices[0].message.content,
+        #     "messages": [AIMessage(content=completion.choices[0].message.content)],
+        # }
 
     def summarize_node(self, state: State):
         summary = state.get("summary", "")
