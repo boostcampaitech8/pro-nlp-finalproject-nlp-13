@@ -100,9 +100,15 @@ CHATBOT_PROMPT = """
 """
 
 SUMMARIZE_PROMPT = """
-지금까지의 요약: {summary}
-새로운 대화:
-{messages}
+사용자 질문: {query}
+RAG 결과:
+{context_text}
+
+web 서치 결과:
+{web_text}
+
+날씨 서치 결과:
+{weather_text}
 
 위 내용을 바탕으로 전체 대화 내용을 짧게 요약해줘.
 """
@@ -225,7 +231,6 @@ class LangGraph:
             rag_queries = decision.rag_queries
             web_queries = decision.web_queries
             weather_queries = decision.weather_queries
-            reason = decision.route_reason
 
         except Exception:
             rag_queries = None
@@ -284,7 +289,7 @@ class LangGraph:
                 if doc_id in existing_ids:
                     continue
                 
-            rag_results.extend(documents)
+                rag_results.extend(documents)
 
         return {"documents": rag_results, "route": "rag"}
 
@@ -304,7 +309,7 @@ class LangGraph:
                 model="gemini-2.5-flash",
                 contents=query,)
             web_results.append(results.text)
-            time.sleep(4)
+            # time.sleep(4) # unlock it for debug by yhkim todo
 
         return {"web_results": web_results}
     
@@ -331,7 +336,7 @@ class LangGraph:
         print("[Chatbot]: 최종 답변 생성 중...")
         
         messages = state["messages"]
-        query = state.get("query", "")
+        query = state["messages"][-1].content
         
         docs = state.get("documents", [])
         context_text = "\n\n".join([d["text"] for d in docs])
@@ -360,30 +365,48 @@ class LangGraph:
         }
 
     def summarize_node(self, state: State):
-        summary = state.get("summary", "")
         messages = state["messages"]
+        
+        query = state["messages"][-1].content
+        
+        docs = state.get("documents", [])
+        context_text = "\n\n".join([d["text"] for d in docs])
+        
+        webs = state.get("web_results", [])
+        web_text = "\n".join(webs)
+        
+        weathers = state.get("weather_results", [])
+        weather_text = "\n".join(weathers)
+        
+        prompt = SUMMARIZE_PROMPT.format(
+            query=query,
+            context_text=context_text,
+            web_text=web_text,
+            weather_text=weather_text
+        )
+        
+        response = self.summerized_llm.invoke(prompt)
+        new_summary = response.content
+        delete_messages = []
+        summary_message = SystemMessage(content=new_summary)
+        
+        print(f"[SUMMARIZE] message count: {len(messages)} make summarize: whole prompt: {prompt}")
+        print(f"[SUMMARIZE] And answer: {new_summary}")
 
         if len(messages) > 6:
-            prompt = SUMMARIZE_PROMPT.format(
-                summary=summary,
-                messages=messages
-            )
-            response = self.summerized_llm.invoke(prompt)
-            new_summary = response.content
-
-            delete_messages = [RemoveMessage(id=m.id) for m in messages[:-2]]
-
-            return {
-                    "summary": new_summary, 
-                    "messages": delete_messages, # 삭제 명령
-                    # 초기화
-                    "documents": [],
-                    "web_results": [],
-                    "weather_results": [],
+            delete_messages = [
+                RemoveMessage(id=m.id)
+                for m in messages[:3]
+            ]
+            
+        return {
+                "summary": new_summary, 
+                "messages": delete_messages + [summary_message],
+                "documents": [],
+                "web_results": [],
+                "weather_results": [],
                 }
             
-        return {}
-
     # routing
     def route_nodes(self, state: State) -> List[str]:
         activated_nodes = []
@@ -409,8 +432,8 @@ class LangGraph:
         workflow.add_node("rag", self.rag_node)
         workflow.add_node("web", self.web_search_node)
         workflow.add_node("weather", self.weather_node)
-        workflow.add_node("chatbot", self.chatbot_node)
         workflow.add_node("validator", self.validate_node)
+        workflow.add_node("chatbot", self.chatbot_node)
         workflow.add_node("summarize", self.summarize_node)
 
         workflow.add_edge(START, "router")
@@ -430,17 +453,10 @@ class LangGraph:
             self.route_nodes,
             intermediates
         )
-
-        workflow.add_conditional_edges(
-            "chatbot",        
-            self.should_summarize,    
-            {
-                "summarize": "summarize",
-                "end": END               
-            }
-        )
-
+        
+        workflow.add_edge("chatbot", "summarize")
         workflow.add_edge("summarize", END)
+
         return workflow.compile(checkpointer=checkpointer)
     
     def run(self, message: str, thread_id: str):
