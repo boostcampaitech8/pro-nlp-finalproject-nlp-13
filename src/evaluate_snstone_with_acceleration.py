@@ -26,9 +26,8 @@ AI 응답은 실제 사람이 SNS에서 대화하는 것처럼 자연스럽고, 
 [평가 기준]
 1. 자연스러움 (naturalness) : AI 응답이 실제 SNS 사용자처럼 자연스러운 대화체를 사용하는지 평가합니다.
     - 기계적이고 형식적인 문체가 아닌 구어체 표현 사용 여부
-    - SNS 대화에서 흔히 사용되는 말투, 어휘, 줄임말, 감정 표현 사용 여부 (예: "ㅋㅋ", "ㅠㅠ", "ㄹㅇ", "헐", "맞아", "진짜?", "그치" 등)
-    - 지나치게 설명적이거나 교과서적인 표현이 없는지
-    - 실제 사람이 대화에서 사용할 법한 문장 흐름인지
+    - SNS 대화에서 흔히 사용되는 말투, 어휘, 줄임말, 감정 표현 사용 여부 (예: "ㅋㅋ", "ㅠㅠ", "ㄹㅇ", "헐", "맞아", "진짜?", "그치", "렬루" 등)
+    - SNS 환경에서는 비표준 표현이나 신조어가 사용되더라도 실제 사용자들이 사용하는 표현이라면 자연스럽다고 판단할 수 있습니다.
 
 2. 맥락 적합성 (contextual_relevance) : AI 응답이 사용자 발화를 정확히 이해하고 자연스럽게 이어지는지 평가합니다.
     - 사용자 감정, 상황, 의도를 적절히 반영했는지
@@ -105,7 +104,8 @@ CONFIG = {
     "base_model_id": "Qwen/Qwen3-4B", 
     "adapter_path":  "src/models/merged_model/dpo_model",
     "data_path":  "/data/ephemeral/pro-nlp-finalproject-nlp-13/data/persona_data/dpo_test_dataset.json",
-    "output_path":  "eval_results/dpo_result.json"
+    "output_path":  "eval_results/dpo_result.json",
+    "lora_adapter_repo": "jis-ai/Qwen3-4B-sft-dpo"
 }
 
 
@@ -157,14 +157,14 @@ async def main_async():
         print("⚠️ 평가 데이터(prompt)를 찾을 수 없습니다.")
         return
 
-    print("===== DPO 모델 로딩 중... =====")
-    tokenizer = AutoTokenizer.from_pretrained(CONFIG["base_model_id"], trust_remote_code=True)
-    base_model = AutoModelForCausalLM.from_pretrained(
-        CONFIG["base_model_id"], torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True,
-    )
-    model = PeftModel.from_pretrained(base_model, CONFIG["adapter_path"])
-    model.eval()
-    print(f"!!!!! 모델 로드 완료 !!!!!")
+    # print("===== DPO 모델 로딩 중... =====")
+    # tokenizer = AutoTokenizer.from_pretrained(CONFIG["base_model_id"], trust_remote_code=True)
+    # base_model = AutoModelForCausalLM.from_pretrained(
+    #     CONFIG["base_model_id"], torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True,
+    # )
+    # model = PeftModel.from_pretrained(base_model, CONFIG["adapter_path"])
+    # model.eval()
+    # print(f"!!!!! 모델 로드 완료 !!!!!")
 
 
     output_file = Path(CONFIG["output_path"])
@@ -246,14 +246,16 @@ async def main_async():
 
 
 def generate_batch(user_inputs: List[str]) -> List[str]:
-    prompts = [f"[|user|]{inp}[|assistant|]" for inp in user_inputs]
+    prompts = [f"<|im_start|>user\n{inp}<|im_end|>\n<|im_start|>assistant\n" for inp in user_inputs]
     
     llm = LLM(
-            model=model_path,
+            model=CONFIG['base_model_id'],
+            enable_lora=True,             # LoRA 사용 설정
+            max_lora_rank=8,             # 학습 시 설정한 Rank (기본 64 혹은 16/32 등)
             dtype="bfloat16",
-            tensor_parallel_size=tensor_parallel_size,
-            gpu_memory_utilization=0.90,  # GPU 메모리 90% 사용
-            max_model_len=2048,  # 최대 시퀀스 길이
+            tensor_parallel_size=1,       # GPU 개수에 따라 조정
+            gpu_memory_utilization=0.90,  # 메모리 여유 확보
+            max_model_len=1024,           # SNS 대화이므로 길이를 줄여 속도 향상
             trust_remote_code=True,
         )
 
@@ -262,19 +264,26 @@ def generate_batch(user_inputs: List[str]) -> List[str]:
             top_p=0.9,
             max_tokens=128,
             repetition_penalty=1.2,
+            stop=["<|im_end|>", "<|im_start|>", "[|"],
             skip_special_tokens=True,  # 특수 토큰 자동 제거
         )
 
-    outputs = self.llm.generate(prompts, self.sampling_params)
+    outputs = llm.generate(
+        prompts, 
+        sampling_params,
+        lora_request=LoRARequest("sns_dpo_adapter", 1, CONFIG['lora_adapter_repo'])
+    )
     
     # 결과 추출
     responses = []
     for output in outputs:
         text = output.outputs[0].text.strip()
-        # 추가 정제 (혹시 남은 특수 토큰 제거)
-        text = text.replace("[|endofturn|]", "").strip()
-        responses.append(text)
+        # 4. 후처리: 기호 파편이 남았다면 한 번 더 정제
+        text = re.sub(r'\[\|.*', '', text) # [| 이후의 모든 문자 제거
+        responses.append(text.strip())
     
+    # vLLM 오브젝트는 메모리 점유가 크므로, 
+    # 메인 루프에서 한 번만 호출하거나 사용 후 정리하는 것이 좋습니다.
     return responses
 
 

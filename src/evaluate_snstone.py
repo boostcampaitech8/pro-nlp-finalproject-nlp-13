@@ -21,9 +21,8 @@ AI 응답은 실제 사람이 SNS에서 대화하는 것처럼 자연스럽고, 
 [평가 기준]
 1. 자연스러움 (naturalness) : AI 응답이 실제 SNS 사용자처럼 자연스러운 대화체를 사용하는지 평가합니다.
     - 기계적이고 형식적인 문체가 아닌 구어체 표현 사용 여부
-    - SNS 대화에서 흔히 사용되는 말투, 어휘, 줄임말, 감정 표현 사용 여부 (예: "ㅋㅋ", "ㅠㅠ", "ㄹㅇ", "헐", "맞아", "진짜?", "그치" 등)
-    - 지나치게 설명적이거나 교과서적인 표현이 없는지
-    - 실제 사람이 대화에서 사용할 법한 문장 흐름인지
+    - SNS 대화에서 흔히 사용되는 말투, 어휘, 줄임말, 감정 표현 사용 여부 (예: "ㅋㅋ", "ㅠㅠ", "ㄹㅇ", "헐", "맞아", "진짜?", "그치", "렬루" 등)
+    - SNS 환경에서는 비표준 표현이나 신조어가 사용되더라도 실제 사용자들이 사용하는 표현이라면 자연스럽다고 판단할 수 있습니다.
 
 2. 맥락 적합성 (contextual_relevance) : AI 응답이 사용자 발화를 정확히 이해하고 자연스럽게 이어지는지 평가합니다.
     - 사용자 감정, 상황, 의도를 적절히 반영했는지
@@ -97,30 +96,46 @@ Feedback::: Evaluation:
 """
 
 CONFIG = {
-    "base_model_id" = "LGAI-EXAONE/EXAONE-4.0-1.2B",
-    "adapter_path" = "/data/ephemeral/pro-nlp-finalproject-nlp-13/src/models/checkpoint-16239",
-    "data_path" = "/data/ephemeral/pro-nlp-finalproject-nlp-13/data/persona_data/dpo_test_dataset.json",
+    "base_model_id": "Qwen/Qwen3-4B",
+    "adapter_path":  "src/models/qwen_dpo/final_model/policy",
+    "data_path": "/data/ephemeral/pro-nlp-finalproject-nlp-13/data/persona_data/dpo_test_dataset.json",
 }
 
 class SNSConversationJudge:
-    def __init__(self, api_key: str):
-        self.client = OpenAI(api_key=api_key, base_url="https://api.upstage.ai/v1")
+    def __init__(self, api_key: str, max_concurrent: int = 5):
+        """
+        max_concurrent: 동시에 처리할 API 요청 수
+        """
+        self.client = AsyncOpenAI(api_key=api_key, base_url="https://api.upstage.ai/v1")
         self.model = "solar-pro3"
+        self.semaphore = asyncio.Semaphore(max_concurrent)
+        
+    async def judge_async(self, user_message, ai_response):
+        """비동기 평가 함수"""
+        async with self.semaphore:  # 동시 요청 수 제한
+            prompt = SNS_CONVERSATION_JUDGE_PROMPT.format(
+                user_message=user_message,
+                ai_response=ai_response
+            )
+            
+            try:
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "당신은 한국어 SNS 대화의 자연스러움을 판별하는 엄격한 언어 전문가입니다. SNS 대화 특유의 구어체, 말투, 문맥적 흐름 등을 완벽하게 이해하고 평가합니다."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0,
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                print(f"⚠️ API 오류: {e}")
+                return None
 
-    def judge(self, user_message, ai_response):
-        prompt = SNS_CONVERSATION_JUDGE_PROMPT.format(
-            user_message=user_message,
-            ai_response=ai_response
-        )
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": "당신은 한국어 SNS 대화의 자연스러움을 판별하는 엄격한 언어 전문가입니다. SNS 대화 특유의 구어체, 말투, 문맥적 흐름 등을 완벽하게 이해하고 평가합니다."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0,
-        )
-        return response.choices[0].message.content
+    async def judge_batch(self, pairs):
+        """배치로 여러 평가 동시 처리"""
+        tasks = [self.judge_async(user_msg, ai_res) for user_msg, ai_res in pairs]
+        return await asyncio.gather(*tasks)
 
 def gen_reply(user_input, tokenizer, model):
     prompt = f"[|user|]{user_input}[|assistant|]"
@@ -140,27 +155,27 @@ def gen_reply(user_input, tokenizer, model):
     
     full_text = tokenizer.decode(outputs[0], skip_special_tokens=False)
     reply = full_text.split("[|assistant|]")[-1].strip()
-    return reply.replace("[|endofturn|]", "").strip()
+    return reply.replace("<|im_end|>", "").strip()
 
 def main():
-    print(f"📂 데이터 로드 중: {data_path}")
+    print(f"📂 데이터 로드 중: {CONFIG['data_path']}")
     with open(CONFIG["data_path"], 'r', encoding='utf-8') as f:
         full_data = json.load(f)
 
 
-    test_prompts = [item['prompt'] for item in full_data.get('eval', [])]
-    test_prompts = test_prompts[:50]
+    test_prompts = [item['prompt'] for item in full_data]
+    test_prompts[:10]
     if not test_prompts:
         print("⚠️ 평가 데이터(prompt)를 찾을 수 없습니다.")
         return
 
 
     print("===== 모델 로딩 =====")
-    tokenizer = AutoTokenizer.from_pretrained(base_model_id, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(CONFIG['base_model_id'], trust_remote_code=True)
     base_model = AutoModelForCausalLM.from_pretrained(
-        base_model_id, torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True
+        CONFIG['base_model_id'], torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True
     )
-    model = PeftModel.from_pretrained(base_model, adapter_path)
+    model = PeftModel.from_pretrained(base_model, CONFIG['adapter_path'])
     model.eval()
 
 
@@ -171,7 +186,7 @@ def main():
     print("="*50 + "\n")
 
 
-    output_file = Path('sft_acc.json')
+    output_file = Path('dpo_acc.json')
 
     # 기존 파일이 있으면 로드해서 이어하기
     if output_file.exists():
@@ -190,47 +205,47 @@ def main():
         generated_res = gen_reply(user_msg, tokenizer, model)
         
         # Solar 평가
-        evaluation_result = judge.judge(user_msg, generated_res)
+    #     evaluation_result = judge.judge(user_msg, generated_res)
         
-        # 결과 출력
-        # print(f"\n💬 User: {user_msg}")
-        # print(f"🤖 DPO Model: {generated_res}")
-        # print(f"📝 {evaluation_result}")
-        # print("-" * 40)
+    #     # 결과 출력
+    #     # print(f"\n💬 User: {user_msg}")
+    #     # print(f"🤖 DPO Model: {generated_res}")
+    #     # print(f"📝 {evaluation_result}")
+    #     # print("-" * 40)
 
-        patterns = {
-            "naturalness": r"Naturalness.*:\s*(\d)",
-            "contextual_relevance": r"Contextual Relevance.*:\s*(\d)",
-            "engagement": r"Engagement.*:\s*(\d)",
-            "conciseness": r"Conciseness.*:\s*(\d)",
-            "total_rating": r"Total rating.*:\s*(\d)"
-        }
+    #     patterns = {
+    #         "naturalness": r"Naturalness.*:\s*(\d)",
+    #         "contextual_relevance": r"Contextual Relevance.*:\s*(\d)",
+    #         "engagement": r"Engagement.*:\s*(\d)",
+    #         "conciseness": r"Conciseness.*:\s*(\d)",
+    #         "total_rating": r"Total rating.*:\s*(\d)"
+    #     }
     
-        current_result = {
-            "id": i + 1,
-            "prompt": user_msg,
-            "response": generated_res,
-            "raw_evaluation": evaluation_result, 
-            "scores": {}
-        }
+    #     current_result = {
+    #         "id": i + 1,
+    #         "prompt": user_msg,
+    #         "response": generated_res,
+    #         "raw_evaluation": evaluation_result, 
+    #         "scores": {}
+    #     }
         
-        for key, pattern in patterns.items():
-            match = re.search(pattern, evaluation_result)
-            if match:
-                current_result["scores"][key] = int(match.group(1))
+    #     for key, pattern in patterns.items():
+    #         match = re.search(pattern, evaluation_result)
+    #         if match:
+    #             current_result["scores"][key] = int(match.group(1))
 
-        results.append(current_result)
+    #     results.append(current_result)
 
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(results, f, indent=4, ensure_ascii=False)
+    #     with open(output_file, "w", encoding="utf-8") as f:
+    #         json.dump(results, f, indent=4, ensure_ascii=False)
 
-    dpo_metrics = calculate_metrics_100(results) # 현재 for문으로 모은 데이터
+    # dpo_metrics = calculate_metrics_100(results) # 현재 for문으로 모은 데이터
 
-    print("=== 모델 성능 평가 결과 (100점 만점) ===")
-    print(f"{'Metric':<25} | {'Score':<10}")
-    print("-" * 40)
-    for metric, score in dpo_metrics.items():
-        print(f"{metric:<25} | {score:>10.2f}")
+    # print("=== 모델 성능 평가 결과 (100점 만점) ===")
+    # print(f"{'Metric':<25} | {'Score':<10}")
+    # print("-" * 40)
+    # for metric, score in dpo_metrics.items():
+    #     print(f"{metric:<25} | {score:>10.2f}")
     
 
 def calculate_metrics_100(results_list):
