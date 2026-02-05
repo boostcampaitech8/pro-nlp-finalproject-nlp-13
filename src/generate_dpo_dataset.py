@@ -53,10 +53,9 @@ def main():
             data=data_dicts,
             batch_size=args.batch_size
         )
-        generate_responses = [
-            TextGeneration(
+        generate_responses = TextGeneration(
                 llm=OpenAILLM(
-                    model="solar-mini",
+                    model="solar-pro2",
                     base_url="https://api.upstage.ai/v1/solar",
                     api_key=API_KEY,
                     max_retries=10,
@@ -111,58 +110,75 @@ SNS 대화 상황에서는 부자연스럽고 형식적인 문서체 응답을 �
 [출력]
 """.rstrip()
             )
-        ]
-        combine_responses = MergeColumns(
-            columns=["res", "generation"],
-            output_column="generations"
-        )
-        evaluate_responses = SNSToneFeedback(
-            aspect="overall-rating",
-            llm=OpenAILLM(
-                model="solar-pro2",
-                base_url="https://api.upstage.ai/v1/solar",
-                api_key=API_KEY,
-                max_retries=10,
-            ),
-        )
-        filter_dpo = FilterNoneRatings()
-        format_dpo = FormatTextGenerationDPO()
+        
+        # combine_responses = MergeColumns(
+        #     columns=["res", "generation"],
+        #     output_column="generations"
+        # )
+        # evaluate_responses = SNSToneFeedback(
+        #     aspect="overall-rating",
+        #     llm=OpenAILLM(
+        #         model="solar-pro3",
+        #         base_url="https://api.upstage.ai/v1/solar",
+        #         api_key=API_KEY,
+        #         max_retries=10,
+        #     ),
+        # )
+        # filter_dpo = FilterNoneRatings()
+        # format_dpo = FormatTextGenerationDPO()
 
-        load_data >> generate_responses >> combine_responses >> evaluate_responses >> filter_dpo >> format_dpo
+        load_data >> generate_responses 
 
 
     print(f"===== DPO 데이터셋 생성중 =====")
-    distiset = pipeline.run(use_cache=False)
+    distiset = pipeline.run(use_cache=True)
     df_distiset = distiset["default"]["train"].to_pandas()
+    
     print(f"!!!!! DPO 데이터셋 {len(df_distiset)}개 생성 완료 !!!!!")
 
 
     print(f"===== 데이터 저장 =====")
-    df_distiset = df_distiset.rename(columns={'instruction': 'prompt'})
-    df_distiset = df_distiset[['prompt', 'chosen', 'rejected', 'chosen_rating', 'rejected_rating']]
-    train_df, eval_df = train_test_split(df_distiset, test_size=0.1, random_state=42)
+    df_distiset = df_distiset.rename(columns={'instruction': 'prompt', 'res': 'chosen', 'generation': 'rejected'})
+    df_distiset = df_distiset[['prompt', 'chosen', 'rejected']]
+    print(df_distiset.iloc[0])
+    train_df, temp_df = train_test_split(df_distiset, test_size=0.2, random_state=42)
+    eval_df, test_df = train_test_split(temp_df, test_size=0.5, random_state=42)
+
+    train_df = train_df.reset_index(drop=True)
+    train_df['index'] = train_df.index
+
+    eval_df = eval_df.reset_index(drop=True)
+    eval_df['index'] = eval_df.index
+
+    test_df = test_df.reset_index(drop=True)
+    test_df['index'] = test_df.index
 
     train_dict = train_df.applymap(lambda x: x.tolist() if isinstance(x, np.ndarray) else x).to_dict(orient='records')
     eval_dict = eval_df.applymap(lambda x: x.tolist() if isinstance(x, np.ndarray) else x).to_dict(orient='records')
-    
-    combined_data = {
+    test_dict = test_df.applymap(lambda x: x.tolist() if isinstance(x, np.ndarray) else x).to_dict(orient='records')
+
+    final_train_data = {
         "train": train_dict,
         "eval": eval_dict
     }
 
-    output_file = Path(args.output_path)
-    output_file.parent.mkdir(parents=True, exist_ok=True)
+    train_output_file = Path(args.train_output_path)
+    test_output_file = Path(args.test_output_path)
 
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(combined_data, f, indent=4, ensure_ascii=False)
+    with open(train_output_file, "w", encoding="utf-8") as f:
+        json.dump(final_train_data, f, indent=4, ensure_ascii=False)
 
-    print(f"!!!!! 통합 데이터셋 저장 완료 (Train: {len(train_df)}, Eval: {len(eval_df)}) !!!!!")
+    with open(test_output_file, "w", encoding="utf-8") as f:
+        json.dump(test_dict, f, indent=4, ensure_ascii=False)
+
+    print(f"!!!!! 통합 데이터셋 저장 완료 (Train: {len(train_df)}, Eval: {len(eval_df)}, Test: {len(test_df)}) !!!!!")
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="SNS DPO 데이터셋 생성 파이프라인")
     parser.add_argument("--data_path", type=str, default="./data/persona_data/AiHub_SNS.csv", help="원본 JSON 데이터 경로")
-    parser.add_argument("--output_path", type=str, default="sns_dpo_combined.json", help="결과를 저장할 파일 경로")
+    parser.add_argument("--train_output_path", type=str, default="dpo_dataset.json", help="학습 데이터를 저장할 파일 경로")
+    parser.add_argument("--test_output_path", type=str, default="dpo_test_dataset.json", help="평가 데이터를 저장할 파일 경로")
     parser.add_argument("--sample_size", type=int, default=10, help="랜덤 추출할 데이터 개수")
     parser.add_argument("--batch_size", type=int, default=5, help="Distilabel 배치 사이즈")
     return parser.parse_args()
