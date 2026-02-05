@@ -99,9 +99,15 @@ class LangGraph:
             # model_provider="upstage",
             temperature=0,
         )
+        
+        summerized_llm = init_chat_model(
+            "solar-mini",
+            model_provider="upstage",
+            temperature=0,
+        )
 
-        BM25_PATH = "../../db/bm25"
-        DB_PATH = "../../db/chroma_db"
+        BM25_PATH = "db/bm25"
+        DB_PATH = "db/chroma_db"
 
         ragconfig = RagConfig(db_path=DB_PATH)
         rag = Rag(config=ragconfig)
@@ -125,6 +131,7 @@ class LangGraph:
         self.retriever = retriever
         self.tavily = tavily
         self.app = self.build_graph(checkpointer=memory)
+        self.summerized_llm = self.summerized_llm
         
     # nodes
     def router_node(self, state: State):
@@ -304,6 +311,7 @@ class LangGraph:
 
         return {"web_results": web_results}
     
+    # weather node
     def weather_node(self, state: State):
         days = state.get("weather_queries")
         print(f"[Weather]: 날씨 검색 중.. {days}")
@@ -338,6 +346,7 @@ class LangGraph:
         system_prompt = f"""당신은 친절한 여행 가이드입니다.
     사용자의 질문에 대해 아래 [정보]를 바탕으로 답변하세요.
     정보가 없으면 답변하되, 진실된 정보만 답변하세요. 만들어낸 정보는 답변하지 않습니다.
+    출력은 무조건 줄글 형식으로 줍니다. json 이나 마크다운 형식으로 절대 주지 마십시오.
     현재 질문은 다음과 같습니다: {query}
     
     [참고 문서]\n{context_text}
@@ -352,10 +361,6 @@ class LangGraph:
         return {
             "final_answer": response.content,
             "messages": [response],
-            # 초기화
-            "documents": [],
-            "web_results": [],
-            "weather_results": [],
         }
 
     def summarize_node(self, state: State):
@@ -371,14 +376,18 @@ class LangGraph:
             위 내용을 바탕으로 전체 대화 내용을 짧게 요약해줘.
             """
 
-            response = self.llm.invoke(prompt)
+            response = self.summerized_llm.invoke(prompt)
             new_summary = response.content
 
             delete_messages = [RemoveMessage(id=m.id) for m in messages[:-2]]
 
             return {
                     "summary": new_summary, 
-                    "messages": delete_messages # 삭제 명령
+                    "messages": delete_messages, # 삭제 명령
+                    # 초기화
+                    "documents": [],
+                    "web_results": [],
+                    "weather_results": [],
                 }
             
         return {}
