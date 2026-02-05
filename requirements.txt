@@ -6,6 +6,7 @@ langchain-text-splitters>=0.3.0
 langchain-openai>=0.3.0
 langchain-chroma>=0.2.0
 langchain-upstage
+google-genai
 
 # --- RAG 및 PDF 처리 필수 패키지 ---
 pymupdf==1.24.9

@@ -71,7 +71,7 @@ class State(TypedDict):
 
     # 검색 결과
     documents: NotRequired[List[RagDocument]]
-    web_results: NotRequired[List[WebResult]]
+    web_results: NotRequired[List[str]]
     weather_results: NotRequired[List[List[str]]]
 
     # 출력

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-import os
+import time
+
 from states import State, RouterDecision
 from typing import List
 from langchain_core.messages import SystemMessage, RemoveMessage, HumanMessage
@@ -8,7 +9,6 @@ from langchain.chat_models import init_chat_model
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 
-from tavily import TavilyClient
 from dotenv import load_dotenv
 
 from src.rag.rag import Rag, RagConfig
@@ -16,6 +16,8 @@ from src.rag.hybrid_retriever import HybridRetriever, RetrieverConfig
 
 from src.weather.weather_tools import forecast_tool
 from datetime import datetime
+
+from google import genai
 
 load_dotenv()
 
@@ -56,13 +58,7 @@ weather 결과:
 {weather_results}
 """
 
-days = ["월", "화", "수", "목", "금", "토", "일"]
-now = datetime.now()
-day_of_week = days[now.weekday()]
-
-current_time = f"{now.strftime('%Y년 %m월 %d일')} {day_of_week}요일"
-
-ROUTER_SYSTEM_PROMPT = f"""
+ROUTER_SYSTEM_PROMPT = """
 오늘 날짜는 다음과 같습니다: {current_time}
 일주일은 다음 요일을 순서대로 포함합니다.: {days}
 당신은 사용자 질문을 [rag, web, weather, direct]로 분류하는 Router입니다.
@@ -134,22 +130,12 @@ class LangGraph:
         config = RetrieverConfig(db=db, pickle_path=BM25_PATH)
         retriever = HybridRetriever(config=config)
         
-        #                 todo 타빌리 따로 빼던가?
-        try:
-            api_key = os.getenv("TAVILY_API_KEY")
-            tavily = TavilyClient(api_key=api_key)
-        except Exception:
-            print("Tavily API 키가 없어서 웹 검색도 가짜(Mock)로 설정합니다.")
-            class MockTavily:
-                def search(self, query, max_results=5):
-                    return [{"title": "테스트 뉴스", "url": "http://test.com", "content": "웹 검색 결과 예시입니다."}]
-            tavily = MockTavily()
-            
         memory = MemorySaver()
+        client = genai.Client()
 
         self.llm = llm
+        self.client = client
         self.retriever = retriever
-        self.tavily = tavily
         self.app = self.build_graph(checkpointer=memory)
         self.summerized_llm = summerized_llm
         
@@ -157,15 +143,26 @@ class LangGraph:
     def router_node(self, state: State):
         print("[Router]: 경로 탐색 중...")
         
+        days = ["월", "화", "수", "목", "금", "토", "일"]
+        now = datetime.now()
+        day_of_week = days[now.weekday()]
+
+        current_time = f"{now.strftime('%Y년 %m월 %d일')} {day_of_week}요일"
+
         structured_llm = self.llm.with_structured_output(RouterDecision)
         question = state.get("query") or state["messages"][-1].content
         
+        prompt = ROUTER_SYSTEM_PROMPT.format(
+            current_time = current_time,
+            days = days
+        )
+        
         messages = [
-            SystemMessage(content=ROUTER_SYSTEM_PROMPT),
+            SystemMessage(content=prompt),
             HumanMessage(content=question),
         ]
         # todo delete it
-        print(f"[Router] {ROUTER_SYSTEM_PROMPT}\n question")
+        print(f"[Router] {prompt}\n question")
         
         try:
                     # todo delete it
@@ -302,36 +299,12 @@ class LangGraph:
         )
         
         web_results = []
-        builded_web_results = state.get("web_results", [])
-        
-        existing_urls = set()
-        
-        for web_reults in builded_web_results:
-            url = web_reults.get("url")
-            if url:
-                existing_urls.add(url)
-
         for query in queries:
-            print(f"[Web] 다음을 검색중입니다... {query}")       
-            results = self.tavily.search(
-                query=query, 
-                max_results=3,
-                search_depth="advanced"
-                )
-            
-            search_hits = results.get("results", []) if isinstance(results, dict) else results
-
-            for r in search_hits:
-                title = r.get("title", "")
-                url = r.get("url", "")
-                snippet =  r.get("content") or r.get("snippet", "")
-                if not url or url in existing_urls:
-                    continue
-                web_results.append({
-                    "title": title,
-                    "url": url,
-                    "snippet": r.get("content") or r.get("snippet", ""),
-                })
+            results = self.client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=query,)
+            web_results.append(results.text)
+            time.sleep(4)
 
         return {"web_results": web_results}
     
@@ -364,10 +337,11 @@ class LangGraph:
         context_text = "\n\n".join([d["text"] for d in docs])
         
         webs = state.get("web_results", [])
-        web_text = "\n\n".join([f"{w['title']}: {w['snippet']}" for w in webs])
+        web_text = "\n".join(webs)
         
-        weather_results = state.get("weather_results", [])
-        weather_text = "\n".join(weather_results)
+        weathers = state.get("weather_results", [])
+        weather_text = "\n".join(weathers)
+        
         prompt = CHATBOT_PROMPT.format(
             query=query,
             context_text=context_text,
