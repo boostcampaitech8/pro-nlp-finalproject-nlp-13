@@ -205,47 +205,47 @@ def main():
         generated_res = gen_reply(user_msg, tokenizer, model)
         
         # Solar 평가
-    #     evaluation_result = judge.judge(user_msg, generated_res)
+        evaluation_result = judge.judge(user_msg, generated_res)
         
-    #     # 결과 출력
-    #     # print(f"\n💬 User: {user_msg}")
-    #     # print(f"🤖 DPO Model: {generated_res}")
-    #     # print(f"📝 {evaluation_result}")
-    #     # print("-" * 40)
+        # 결과 출력
+        # print(f"\n💬 User: {user_msg}")
+        # print(f"🤖 DPO Model: {generated_res}")
+        # print(f"📝 {evaluation_result}")
+        # print("-" * 40)
 
-    #     patterns = {
-    #         "naturalness": r"Naturalness.*:\s*(\d)",
-    #         "contextual_relevance": r"Contextual Relevance.*:\s*(\d)",
-    #         "engagement": r"Engagement.*:\s*(\d)",
-    #         "conciseness": r"Conciseness.*:\s*(\d)",
-    #         "total_rating": r"Total rating.*:\s*(\d)"
-    #     }
+        patterns = {
+            "naturalness": r"Naturalness.*:\s*(\d)",
+            "contextual_relevance": r"Contextual Relevance.*:\s*(\d)",
+            "engagement": r"Engagement.*:\s*(\d)",
+            "conciseness": r"Conciseness.*:\s*(\d)",
+            "total_rating": r"Total rating.*:\s*(\d)"
+        }
     
-    #     current_result = {
-    #         "id": i + 1,
-    #         "prompt": user_msg,
-    #         "response": generated_res,
-    #         "raw_evaluation": evaluation_result, 
-    #         "scores": {}
-    #     }
+        current_result = {
+            "id": i + 1,
+            "prompt": user_msg,
+            "response": generated_res,
+            "raw_evaluation": evaluation_result, 
+            "scores": {}
+        }
         
-    #     for key, pattern in patterns.items():
-    #         match = re.search(pattern, evaluation_result)
-    #         if match:
-    #             current_result["scores"][key] = int(match.group(1))
+        for key, pattern in patterns.items():
+            match = re.search(pattern, evaluation_result)
+            if match:
+                current_result["scores"][key] = int(match.group(1))
 
-    #     results.append(current_result)
+        results.append(current_result)
 
-    #     with open(output_file, "w", encoding="utf-8") as f:
-    #         json.dump(results, f, indent=4, ensure_ascii=False)
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=4, ensure_ascii=False)
 
-    # dpo_metrics = calculate_metrics_100(results) # 현재 for문으로 모은 데이터
+    dpo_metrics = calculate_metrics_100(results) # 현재 for문으로 모은 데이터
 
-    # print("=== 모델 성능 평가 결과 (100점 만점) ===")
-    # print(f"{'Metric':<25} | {'Score':<10}")
-    # print("-" * 40)
-    # for metric, score in dpo_metrics.items():
-    #     print(f"{metric:<25} | {score:>10.2f}")
+    print("=== 모델 성능 평가 결과 (100점 만점) ===")
+    print(f"{'Metric':<25} | {'Score':<10}")
+    print("-" * 40)
+    for metric, score in dpo_metrics.items():
+        print(f"{metric:<25} | {score:>10.2f}")
     
 
 def calculate_metrics_100(results_list):

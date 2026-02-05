@@ -3,8 +3,10 @@ import re
 import json
 import torch
 import asyncio
+import random
 from pathlib import Path
 from dotenv import load_dotenv 
+from typing import List
 from openai import AsyncOpenAI
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
@@ -12,6 +14,7 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
 import time
 from vllm import LLM, SamplingParams
+from vllm.lora.request import LoRARequest
 
 load_dotenv()
 API_KEY = os.getenv('UPSTAGE_API_KEY')
@@ -71,17 +74,18 @@ AI 응답은 실제 사람이 SNS에서 대화하는 것처럼 자연스럽고, 
 
 [출력 형식]
 Feedback:::  
-Evaluation:
-- Naturalness: (근거 짧게 작성)
-- Contextual Relevance: (근거 짧게 작성)
-- Engagement: (근거 짧게 작성)
-- Conciseness: (근거 짧게 작성)
 
 Scores:
 - Naturalness: (1~5)
 - Contextual Relevance: (1~5)
 - Engagement: (1~5)
 - Conciseness: (1~5)
+
+Evaluation:
+- Naturalness: (근거 짧게 작성)
+- Contextual Relevance: (근거 짧게 작성)
+- Engagement: (근거 짧게 작성)
+- Conciseness: (근거 짧게 작성)
 
 Total rating: (네 항목 평균을 반올림하여 1~5 사이 정수로 작성)
 
@@ -103,47 +107,79 @@ Feedback::: Evaluation:
 CONFIG = {
     "base_model_id": "Qwen/Qwen3-4B", 
     "adapter_path":  "src/models/merged_model/dpo_model",
+    "sft_path": "/data/ephemeral/pro-nlp-finalproject-nlp-13/src/models/merged_model/qwen_sft_merged_model",
     "data_path":  "/data/ephemeral/pro-nlp-finalproject-nlp-13/data/persona_data/dpo_test_dataset.json",
-    "output_path":  "eval_results/dpo_result.json",
+    "output_path":  "eval_results/sft_result.json",
     "lora_adapter_repo": "jis-ai/Qwen3-4B-sft-dpo"
 }
 
 
 class SNSConversationJudge:
     def __init__(self, api_key: str, max_concurrent: int = 5):
-        """
-        max_concurrent: 동시에 처리할 API 요청 수
-        """
         self.client = AsyncOpenAI(api_key=api_key, base_url="https://api.upstage.ai/v1")
-        self.model = "solar-pro3"
+        self.model = "solar-pro"
         self.semaphore = asyncio.Semaphore(max_concurrent)
-        
+        self.max_retries = 5
+
     async def judge_async(self, user_message, ai_response):
-        """비동기 평가 함수"""
-        async with self.semaphore:  # 동시 요청 수 제한
+        """비동기 평가 함수 + 재시도 로직 추가"""
+        async with self.semaphore:
             prompt = SNS_CONVERSATION_JUDGE_PROMPT.format(
                 user_message=user_message,
                 ai_response=ai_response
             )
             
-            try:
-                response = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": "당신은 한국어 SNS 대화의 자연스러움을 판별하는 엄격한 언어 전문가입니다. SNS 대화 특유의 구어체, 말투, 문맥적 흐름 등을 완벽하게 이해하고 평가합니다."},
-                        {"role": "user", "content": prompt},
-                    ],
-                    temperature=0,
-                )
-                return response.choices[0].message.content
-            except Exception as e:
-                print(f"⚠️ API 오류: {e}")
-                return None
+            for attempt in range(self.max_retries):
+                try:
+                    response = await self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[
+                            {"role": "system", "content": "당신은 한국어 SNS 대화의 자연스러움을 판별하는 엄격한 언어 전문가입니다."},
+                            {"role": "user", "content": prompt},
+                        ],
+                        temperature=0,
+                    )
+                    return response.choices[0].message.content
+                
+                except Exception as e:
+                    # 500 에러(서버 에러)나 429 에러(Rate Limit)일 때 재시도
+                    if "500" in str(e) or "429" in str(e):
+                        wait_time = (2 ** attempt) + random.uniform(0, 1)
+                        print(f"⚠️ Solar API 서버 혼잡 ({e}). {wait_time:.1f}초 후 재시도... ({attempt + 1}/{self.max_retries})")
+                        await asyncio.sleep(wait_time)
+                    else:
+                        print(f"❌ 예상치 못한 API 오류: {e}")
+                        return None
+            
+            print(f"🚨 {self.max_retries}회 시도했으나 결국 실패했습니다: {user_message[:20]}...")
+            return None
 
-    async def judge_batch(self, pairs):
-        """배치로 여러 평가 동시 처리"""
-        tasks = [self.judge_async(user_msg, ai_res) for user_msg, ai_res in pairs]
-        return await asyncio.gather(*tasks)
+
+async def evaluate_and_save_one(judge, user_msg, gen_res, result_id, output_file, results):
+    """하나씩 평가하고 즉시 저장하는 함수"""
+    eval_res = await judge.judge_async(user_msg, gen_res)
+    
+    if eval_res is None:
+        print(f"  ⚠️ ID {result_id}: 평가 실패 (저장 안 함)")
+        return None
+        
+    current_result = {
+        "id": result_id,
+        "prompt": user_msg,
+        "response": gen_res,
+        "raw_evaluation": eval_res,
+        "scores": parse_evaluation(eval_res)
+    }
+    
+    # 결과 리스트에 추가
+    results.append(current_result)
+    
+    # 즉시 파일에 저장
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=4, ensure_ascii=False)
+    
+    print(f"  ✅ ID {result_id}: 평가 완료 및 저장 ({len(results)}개 누적)")
+    return current_result
 
 
 async def main_async():
@@ -151,23 +187,15 @@ async def main_async():
     with open(CONFIG["data_path"], 'r', encoding='utf-8') as f:
         full_data = json.load(f)
 
-    test_prompts = [item['prompt'] for item in full_data.get('eval', [])]
+    test_prompts = [item['prompt'] for item in full_data]
     
     if not test_prompts:
         print("⚠️ 평가 데이터(prompt)를 찾을 수 없습니다.")
         return
 
-    # print("===== DPO 모델 로딩 중... =====")
-    # tokenizer = AutoTokenizer.from_pretrained(CONFIG["base_model_id"], trust_remote_code=True)
-    # base_model = AutoModelForCausalLM.from_pretrained(
-    #     CONFIG["base_model_id"], torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True,
-    # )
-    # model = PeftModel.from_pretrained(base_model, CONFIG["adapter_path"])
-    # model.eval()
-    # print(f"!!!!! 모델 로드 완료 !!!!!")
-
-
     output_file = Path(CONFIG["output_path"])
+    
+    # 기존 결과 로드
     if output_file.exists():
         with open(output_file, "r", encoding="utf-8") as f:
             results = json.load(f)
@@ -176,6 +204,7 @@ async def main_async():
     else:
         results = []
         start_idx = 0
+        output_file.parent.mkdir(parents=True, exist_ok=True)
 
     remaining_prompts = test_prompts[start_idx:]
     
@@ -183,51 +212,28 @@ async def main_async():
         print("✅ 모든 평가가 완료되었습니다.")
         return
 
-
+    # 1. 배치 응답 생성
     print(f"\n===== 배치 응답 생성 중 (총 {len(remaining_prompts)}개)... =====")
     start_time = time.time()
     generated_responses = generate_batch(remaining_prompts)
     gen_time = time.time() - start_time
     print(f"===== 응답 생성 완료 ({gen_time:.2f}초) =====")
 
-
-    print(f"\n===== Solar API 평가 시작 =====")
-    judge = SNSConversationJudge(api_key=API_KEY, max_concurrent=10)
-    
-    pairs = list(zip(remaining_prompts, generated_responses))
+    # 2. 하나씩 평가하고 즉시 저장
+    print(f"\n===== Solar API 평가 시작 (즉시 저장 모드) =====")
+    judge = SNSConversationJudge(api_key=API_KEY, max_concurrent=3)  # 동시 요청 수 줄여서 안정성 확보
     
     eval_start_time = time.time()
-    evaluation_results = await judge.judge_batch(pairs)
+    
+    # 순차적으로 평가하고 저장 (메모리 효율적, 안전함)
+    for i, (user_msg, gen_res) in enumerate(zip(remaining_prompts, generated_responses), start=start_idx):
+        result_id = i + 1
+        await evaluate_and_save_one(judge, user_msg, gen_res, result_id, output_file, results)
+    
     eval_time = time.time() - eval_start_time
-    print(f"===== 평가 완료 ({eval_time:.2f}초) =====")
+    print(f"\n===== 평가 완료 ({eval_time:.2f}초) =====")
 
-
-    print("\n💾 결과 저장 중...")
-    for i, (user_msg, gen_res, eval_res) in enumerate(zip(remaining_prompts, generated_responses, evaluation_results), start=start_idx):
-        if eval_res is None:
-            continue
-            
-        current_result = {
-            "id": i + 1,
-            "prompt": user_msg,
-            "response": gen_res,
-            "raw_evaluation": eval_res,
-            "scores": parse_evaluation(eval_res)
-        }
-        
-        results.append(current_result)
-        
-        # 주기적으로 저장 (10개마다)
-        if (i - start_idx + 1) % 10 == 0:
-            with open(output_file, "w", encoding="utf-8") as f:
-                json.dump(results, f, indent=4, ensure_ascii=False)
-            print(f"  ✓ 중간 저장 완료 ({i - start_idx + 1}/{len(remaining_prompts)})")
-
-    # 최종 저장
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=4, ensure_ascii=False)
-
-    # 8. 메트릭 계산
+    # 3. 최종 메트릭 계산
     dpo_metrics = calculate_metrics_100(results)
 
     print("\n" + "="*50)
@@ -249,13 +255,12 @@ def generate_batch(user_inputs: List[str]) -> List[str]:
     prompts = [f"<|im_start|>user\n{inp}<|im_end|>\n<|im_start|>assistant\n" for inp in user_inputs]
     
     llm = LLM(
-            model=CONFIG['base_model_id'],
-            enable_lora=True,             # LoRA 사용 설정
-            max_lora_rank=8,             # 학습 시 설정한 Rank (기본 64 혹은 16/32 등)
-            dtype="bfloat16",
-            tensor_parallel_size=1,       # GPU 개수에 따라 조정
-            gpu_memory_utilization=0.90,  # 메모리 여유 확보
-            max_model_len=1024,           # SNS 대화이므로 길이를 줄여 속도 향상
+            model=CONFIG['sft_path'],
+            enable_lora=False,
+            dtype="float16",
+            tensor_parallel_size=1,
+            gpu_memory_utilization=0.80,
+            max_model_len=1024,
             trust_remote_code=True,
         )
 
@@ -265,25 +270,28 @@ def generate_batch(user_inputs: List[str]) -> List[str]:
             max_tokens=128,
             repetition_penalty=1.2,
             stop=["<|im_end|>", "<|im_start|>", "[|"],
-            skip_special_tokens=True,  # 특수 토큰 자동 제거
+            skip_special_tokens=True,
         )
 
     outputs = llm.generate(
         prompts, 
         sampling_params,
-        lora_request=LoRARequest("sns_dpo_adapter", 1, CONFIG['lora_adapter_repo'])
+        # lora_request=LoRARequest("sns_dpo_adapter", 1, CONFIG['lora_adapter_repo'])
     )
     
-    # 결과 추출
     responses = []
     for output in outputs:
+        print(output)
         text = output.outputs[0].text.strip()
-        # 4. 후처리: 기호 파편이 남았다면 한 번 더 정제
-        text = re.sub(r'\[\|.*', '', text) # [| 이후의 모든 문자 제거
+        if '</think>' in text:
+            text = text.split('</think>')[-1].strip()
+        
+        elif '<think>' in text:
+            text = text.split('<think>')[0].strip()
+
+        text = re.sub(r'\[\|.*', '', text)
         responses.append(text.strip())
     
-    # vLLM 오브젝트는 메모리 점유가 크므로, 
-    # 메인 루프에서 한 번만 호출하거나 사용 후 정리하는 것이 좋습니다.
     return responses
 
 
