@@ -1,26 +1,27 @@
 from langchain_chroma import Chroma
-from langchain_core.embeddings import Embeddings
-from langchain_core.documents import Document
 from langchain_community.retrievers import BM25Retriever
+from langchain_upstage import UpstageEmbeddings
 import pickle
 from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class RagConfig:
-    db_path: str
-    embeddings: Embeddings
-    bm25_path: str = ""
+    db_path: str = "db/chroma_db"
+    embedding_model_name: str = "solar-embedding-1-large"
+    bm25_path: str = "db/bm25"
     documents: list = field(default_factory=list)
     collection_name: str = "test"
     
 class Rag:
     def __init__(self, 
                  config: RagConfig):
+        embeddings = UpstageEmbeddings(model=config.embedding_model_name)
         self.config = config
+        self.embeddings = embeddings
     
     def build(self):
         vectordb = Chroma(
-            embedding_function=self.config.embeddings,
+            embedding_function=self.embeddings,
             collection_name=self.config.collection_name,
             persist_directory=self.config.db_path)
         
@@ -47,6 +48,6 @@ class Rag:
         print(f"[RAG-BUILDER] loading DB with path: {self.config.db_path}")
         return Chroma(
         persist_directory=self.config.db_path,
-        embedding_function=self.config.embeddings,
+        embedding_function=self.embeddings,
         collection_name=self.config.collection_name,)
     
