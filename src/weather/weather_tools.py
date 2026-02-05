@@ -66,7 +66,7 @@ def forecast_tool(city: str, days: int = 1) -> str:
 
     result = (
         f"{prefix}{coord['name']} {target_date} 날씨 예보:\n\n"
-        f"📊 요약\n"
+        f"요약\n"
         f"- 최고기온: {max_temp}°C\n"
         f"- 최저기온: {min_temp}°C\n"
         f"- 총 강수량: {total_rain}mm\n"

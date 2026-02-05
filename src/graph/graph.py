@@ -131,7 +131,7 @@ class LangGraph:
         self.retriever = retriever
         self.tavily = tavily
         self.app = self.build_graph(checkpointer=memory)
-        self.summerized_llm = self.summerized_llm
+        self.summerized_llm = summerized_llm
         
     # nodes
     def router_node(self, state: State):
