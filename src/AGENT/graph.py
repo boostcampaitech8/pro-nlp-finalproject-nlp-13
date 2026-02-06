@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import time
-
 from datetime import datetime
-from states import State, RouterDecision
 from typing import List, Any, Dict
+
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.chat_models import init_chat_model
@@ -13,6 +11,9 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.checkpoint.memory import MemorySaver
 
 from dotenv import load_dotenv
+from google import genai
+
+from states import State, RouterDecision
 
 from src.RAG.rag import Rag, RagConfig
 from src.RAG.hybrid_retriever import HybridRetriever, RetrieverConfig
@@ -20,7 +21,6 @@ from src.RAG.hybrid_retriever import HybridRetriever, RetrieverConfig
 from src.AGENT.tool.weather import forecast_tool
 from src.AGENT.prompt.prompt import Router, ChatBot, Summarizer, Validator
 
-from google import genai
 
 load_dotenv()
 class LangGraph:
@@ -223,7 +223,6 @@ class LangGraph:
                 model="gemini-2.5-flash",
                 contents=query,)
             web_results.append(results.text)
-            # time.sleep(4) # unlock it for debug by yhkim todo
 
         return {"web_results": web_results}
     
