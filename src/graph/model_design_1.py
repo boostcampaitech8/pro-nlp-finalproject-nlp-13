@@ -3,8 +3,9 @@ import time
 import uuid
 from dotenv import load_dotenv, find_dotenv
 
-load_dotenv(find_dotenv())
 from src.graph.graph import LangGraph
+
+load_dotenv(find_dotenv())
 
 st.set_page_config(
     page_title="여행 챗봇",
