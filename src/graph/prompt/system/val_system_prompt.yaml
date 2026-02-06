@@ -15,9 +15,8 @@ template: |
   - **web:** 운영 시간, 가격 등 구체적 사실이 결과 텍스트에 포함되어 있는가? -> 있으면 `null`
 
   **출력 형식 (JSON):**
-  {
+  {{
     "rag_queries": ["쿼리"] 또는 null,
     "web_queries": ["쿼리"] 또는 null,
     "weather_queries": ["쿼리"] 또는 null,
-    "reason": 짧은 이유
-  }
+  }}

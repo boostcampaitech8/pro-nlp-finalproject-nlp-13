@@ -1,0 +1,5 @@
+_type: prompt
+# input_variables:
+#   - question
+template: |
+  유저의 질문: {question}

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import time
 
+from datetime import datetime
+
 from states import State, RouterDecision
 from typing import List
-from langchain_core.messages import SystemMessage, RemoveMessage, HumanMessage
-from langchain_core.prompts import load_prompt
+from langchain_core.messages import HumanMessage
+from langchain_core.prompts import ChatPromptTemplate
 from langchain.chat_models import init_chat_model
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -16,12 +18,13 @@ from src.rag.rag import Rag, RagConfig
 from src.rag.hybrid_retriever import HybridRetriever, RetrieverConfig
 
 from src.weather.weather_tools import forecast_tool
-from datetime import datetime
+from src.graph.prompt.prompt import Router, ChatBot, Summarizer, Validator
 
 from google import genai
 
 load_dotenv()
 class LangGraph:
+    DAYS = ["월", "화", "수", "목", "금", "토", "일"]
     def __init__(self):
         llm = init_chat_model(
             "gpt-4o-mini",
@@ -48,53 +51,55 @@ class LangGraph:
         client = genai.Client()
 
         self.llm = llm
+        self.structured_llm = llm.with_structured_output(RouterDecision)
+        self.summerized_llm = summerized_llm
         self.client = client
         self.retriever = retriever
         self.app = self.build_graph(checkpointer=memory)
-        self.summerized_llm = summerized_llm
         
     # nodes
     def router_node(self, state: State):
-        print("[Router]: 경로 탐색 중...")
-        
-        days = ["월", "화", "수", "목", "금", "토", "일"]
+        print("[Router]: 경로 탐색 중...")        
         now = datetime.now()
-        day_of_week = days[now.weekday()]
-
+        day_of_week = self.DAYS[now.weekday()]
         current_time = f"{now.strftime('%Y년 %m월 %d일')} {day_of_week}요일"
-
-        structured_llm = self.llm.with_structured_output(RouterDecision)
         question = state.get("query") or state["messages"][-1].content
         
-        router_system_prompt = load_prompt("./prompt/router_system_prompt.yaml")
-        prompt = router_system_prompt.format(
-            current_time = current_time,
-            days = days
-        )
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", Router.system), 
+            ("human", Router.user),
+        ])
+        chain = prompt | self.structured_llm
         
-        messages = [
-            SystemMessage(content=prompt),
-            HumanMessage(content=question),
-        ]
-        # todo delete it
-        print(f"[Router] {prompt}\n question")
+        # todo delete it for debug!!!!!!!
+        formatted = prompt.format_messages(
+            current_time=current_time,
+            days=self.DAYS,
+            question=question,)
+        print("[Router][PROMPT] system: ")
+        print(formatted[-2].content)
+        print("[Router][PROMPT] human: ")
+        print(formatted[-1].content)
         
         try:
                     # todo delete it
             print("[Router] model is thinking...")
-            decision = structured_llm.invoke(messages)
+            decision = chain.invoke({
+                "current_time": current_time,
+                "days": self.DAYS,    
+                "question": question   
+            })
             rag_queries = decision.rag_queries
             web_queries = decision.web_queries
             weather_queries = decision.weather_queries
             direct = decision.direct
-            reason = decision.route_reason
             
         except Exception as e:
             rag_queries = None
             web_queries = None
             weather_queries = None
             direct = question
-            reason = f"Router fallback due to error: {type(e).__name__}"
+            print(f"[Router][ERROR] router fallback due to error: {str(e)}")
             
                 # todo delete it
         print(f"""[Router] Router analyzed the question. The result:\n[Rag]\n{rag_queries}\n[Web]\n{web_queries}\n[Weather]\n{weather_queries}\n[Direct]\n{direct}""")
@@ -104,13 +109,17 @@ class LangGraph:
             "web_queries": web_queries,
             "weather_queries": weather_queries,
             "direct": direct,
-            "route_reason": reason,
             }
     
     # validation
     def validate_node(self, state: State):
         print(f"[Validate] 지금까지 모은 정보를 검증합니다...")
         retried_count = state.get("retried_count", 0)
+        question = state.get("query") or state["messages"][-1].content
+        documents = state.get("documents", []),
+        web_results = state.get("web_results", []),
+        weather_results = state.get("weather_results", [])
+    
         if retried_count > 1: 
             return {
                 "rag_queries": None,
@@ -118,32 +127,36 @@ class LangGraph:
                 "weather_queries": None,
                 "retried_count": 0
                 }
-        question = state.get("query") or state["messages"][-1].content
-        structured_llm = self.llm.with_structured_output(RouterDecision)
-        validation_system_prompt = load_prompt("./prompt/val_system_prompt.yaml")
-        validation_user_prompt = load_prompt("./prompt/val_user_prompt.yaml")
-
-        user_prompt = validation_user_prompt.format(
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", Validator.system), 
+            ("human", Validator.user),
+        ])
+        chain = prompt | self.structured_llm
+        
+        # todo delete it for debug!!!!!!!
+        formatted = prompt.format_messages(
             question=question,
-            documents=state.get("documents", []),
-            web_results=state.get("web_results", []),
-            weather_results=state.get("weather_results", [])
-        )
-        messages = [
-            SystemMessage(content=validation_system_prompt),
-            HumanMessage(content=user_prompt),
-        ]
-        # todo delete it 
-        print(f"[Validate] the processing..: \n {validation_system_prompt}")
-        print(f"[Validate] the processing..: \n {user_prompt}")
-        print("--------------------------------------------")        
+            documents=documents,
+            web_results=web_results,
+            weather_results=weather_results,)
+        print("[Validator][PROMPT] system: ")
+        print(formatted[-2].content)
+        print("[Validator][PROMPT] human: ")
+        print(formatted[-1].content)
         try:
-            decision = structured_llm.invoke(messages)
+            decision = chain.invoke({
+                "question":question,
+                "documents":documents,
+                "web_results":web_results,
+                "weather_results":weather_results,
+            })
             rag_queries = decision.rag_queries
             web_queries = decision.web_queries
             weather_queries = decision.weather_queries
 
-        except Exception:
+        except Exception as e:
+            print(f"[Validator][ERROR] validator fallback due to error: {str(e)}")
             rag_queries = None
             web_queries = None
             weather_queries = None
@@ -173,15 +186,6 @@ class LangGraph:
         )
         
         rag_results = []
-        builded_documents = state.get("documents", [])
-        
-        existing_ids = set()
-
-        for d in builded_documents:
-            meta = d.get("metadata", {})
-            doc_id = meta.get("id")
-            if doc_id:
-                existing_ids.add(doc_id)
 
         for query in queries:
             docs = self.retriever.retrieve(query)
@@ -196,13 +200,8 @@ class LangGraph:
                         "doc_id": doc_id
                     }
                 ]
-                
-                if doc_id in existing_ids:
-                    continue
-                
                 rag_results.extend(documents)
-
-        return {"documents": rag_results, "route": "rag"}
+        return {"documents": rag_results}
 
     # WebSearch Node
     def web_search_node(self, state: State):
@@ -246,8 +245,12 @@ class LangGraph:
     def chatbot_node(self, state: State):
         print("[Chatbot]: 최종 답변 생성 중...")
         
-        messages = state["messages"]
-        query = state["messages"][-1].content
+        now = datetime.now()
+        day_of_week = self.DAYS[now.weekday()]
+        current_time = f"{now.strftime('%Y년 %m월 %d일')} {day_of_week}요일"
+        
+        question = state["messages"][-1].content
+        summary = state.get("summary", "")
         
         docs = state.get("documents", [])
         context_text = "\n\n".join([d["text"] for d in docs])
@@ -257,65 +260,87 @@ class LangGraph:
         
         weathers = state.get("weather_results", [])
         weather_text = "\n".join(weathers)
+             
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", ChatBot.system), 
+            ("human", ChatBot.user),
+        ])
+        chain = prompt | self.llm
         
-        chatbot_prompt = load_prompt("./prompt/chatbot_prompt.yaml")
-        
-        prompt = chatbot_prompt.format(
-            query=query,
+        # todo delete it for debug!!!!!!!
+        formatted = prompt.format_messages(
+            current_time=current_time,
+            question=question,
             context_text=context_text,
             web_text=web_text,
-            weather_text=weather_text
-        )
-        prompt_messages = [SystemMessage(content=prompt)] + messages
-                        # todo delete it
-
-        print(f"[CHATBOT] 정리하는 prompt: {prompt}")
-        response = self.llm.invoke(prompt_messages)
+            weather_text=weather_text,
+            summary=summary,)
+        print("[Chatbot][PROMPT] system: ")
+        print(formatted[-2].content)
+        print("[Chatbot][PROMPT] human: ")
+        print(formatted[-1].content)
+        
+        final_answer = ""
+        message = []
+        
+        try:
+            response = chain.invoke({
+                "current_time":current_time,
+                "question":question,
+                "context_text":context_text,
+                "web_text":web_text,
+                "weather_text":weather_text,
+                "summary":summary,
+            })
+            final_answer = response.content
+            message.append(response)
+            
+        except Exception as e:
+            print(f"[Chatbot][ERROR] chatbot fallback due to error: {str(e)}")
+            final_answer = "ㅋㅋㅋ 미안. 다시 한번 말해줄래?"
         
         return {
-            "final_answer": response.content,
-            "messages": [response],
+            "final_answer": final_answer,
+            "messages": message,
         }
 
     def summarize_node(self, state: State):
-        messages = state["messages"]
-        
-        query = state["messages"][-1].content
-        
-        docs = state.get("documents", [])
-        context_text = "\n\n".join([d["text"] for d in docs])
-        
-        webs = state.get("web_results", [])
-        web_text = "\n".join(webs)
-        
-        weathers = state.get("weather_results", [])
-        weather_text = "\n".join(weathers)
-        
-        summarize_prompt = load_prompt("./prompt/summarize_prompt.yaml")
-        prompt = summarize_prompt.format(
-            query=query,
-            context_text=context_text,
-            web_text=web_text,
-            weather_text=weather_text
-        )
-        
-        response = self.summerized_llm.invoke(prompt)
-        new_summary = response.content
-        delete_messages = []
-        summary_message = SystemMessage(content=new_summary)
-        
-        print(f"[SUMMARIZE] message count: {len(messages)} make summarize: whole prompt: {prompt}")
-        print(f"[SUMMARIZE] And answer: {new_summary}")
+        print("[Summarize]: 대화 요약 중...")
+        print("[Summarize]: 메시지 확인...\n", state["messages"])
 
-        if len(messages) > 6:
-            delete_messages = [
-                RemoveMessage(id=m.id)
-                for m in messages[:3]
-            ]
+        question = state["messages"][-2].content
+        bot_response = state["messages"][-1].content
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", Summarizer.system), 
+            ("human", Summarizer.user),
+        ])
+        chain = prompt | self.llm
+        new_summary = ""
+        
+        # todo delete it for debug!!!!!!!
+        formatted = prompt.format_messages(
+            question=question,
+            bot_response=bot_response)
+        print("[Summarize][PROMPT] system: ")
+        print(formatted[-2].content)
+        print("[Summarize][PROMPT] human: ")
+        print(formatted[-1].content)
+        
+        try: 
+            response = chain.invoke({
+                "question":question,
+                "bot_response":bot_response,
+            })
+            new_summary = response.content
+        
+        except Exception as e:
+            print(f"[Summarize][ERROR] Summarize fallback due to error: {str(e)}")
+
+        print(f"[Summarize] And answer: {new_summary}")
             
         return {
                 "summary": new_summary, 
-                "messages": delete_messages + [summary_message],
                 "documents": [],
                 "web_results": [],
                 "weather_results": [],
@@ -333,11 +358,6 @@ class LangGraph:
         if state.get("direct") or not activated_nodes:
             return ["chatbot"]
         return activated_nodes
-    
-    def should_summarize(self, state: State):
-        if len(state["messages"]) > 6:
-            return "summarize"
-        return "end"
 
     def build_graph(self, checkpointer=None):
         workflow = StateGraph(State)

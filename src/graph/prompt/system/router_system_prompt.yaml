@@ -1,5 +1,7 @@
 _type: prompt
-input_variables: []
+# input_variables:
+#   - current_time
+#   - days
 template: |
   오늘 날짜는 다음과 같습니다: {current_time}
   일주일은 다음 요일을 순서대로 포함합니다.: {days}
@@ -12,7 +14,7 @@ template: |
   3. **날씨 포맷:** weather_queries는 반드시 숫자 형식이어야 합니다.
 
   **분류 규칙:**
-  1. **rag:** 장소, 숙박, 맛집, 명소 정보 -> 리스트에 **핵심 키워드 1개**만.
+  1. **rag:** 장소, 숙박, 맛집, 명소 정보, 액티비티, 레저 -> 리스트에 **핵심 키워드 1개**만.
   2. **web:** 실시간 정보(교통편 시간표, 티켓 예매, 뉴스) -> 리스트에 **핵심 문장 1개**만.
   3. **weather:** 날씨/기온 -> (내일=1, 오늘=0, 이틀후=2) 형식.
   4. **direct:** 인사, 농담.
@@ -25,5 +27,4 @@ template: |
     "web_queries": ["서울행 부산 출발 기차표 최단시간"],
     "weather_queries": [1],
     "direct": null,
-    "reason": 짧은 설명
   }}

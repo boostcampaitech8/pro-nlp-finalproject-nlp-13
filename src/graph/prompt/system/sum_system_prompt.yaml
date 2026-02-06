@@ -1,0 +1,4 @@
+_type: prompt
+input_variables: []
+template:
+  너는 문맥을 잘읽는 요약 전문가야. 아래 사용자 질문과 모델의 응답을 보고 전체 대화를 요약해줘.
