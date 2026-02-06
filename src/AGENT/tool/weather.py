@@ -68,10 +68,11 @@ def forecast_tool(city: str, days: int = 1) -> str:
 
     if not filtered:
         return f"'{target_date}' 예보 데이터가 없습니다."
-
+    
+    perceived_temp = [f["체감"] for f in filtered]
     max_temp = max(f["섭씨"] for f in filtered)
     min_temp = min(f["섭씨"] for f in filtered)
-    perceived_temp = sum(f["체감"] for f in filtered)
+    average_perceived_temp = sum(perceived_temp) / len(perceived_temp)
     total_rain = sum(f["강수량"] for f in filtered)
     total_snow = sum(f["적설량"] for f in filtered)
     
@@ -82,7 +83,7 @@ def forecast_tool(city: str, days: int = 1) -> str:
         f"요약\n"
         f"- 최고기온: {max_temp}°C\n"
         f"- 최저기온: {min_temp}°C\n"
-        f"- 체감 온도: {perceived_temp}°C\n"
+        f"- 체감 온도: {average_perceived_temp}°C\n"
         f"- 총 강수량: {total_rain}mm\n"
         f"- 총 적설량: {total_snow}cm\n\n"
     )

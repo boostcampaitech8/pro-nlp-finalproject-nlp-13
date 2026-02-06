@@ -3,13 +3,13 @@ from __future__ import annotations
 import time
 
 from datetime import datetime
-
 from states import State, RouterDecision
-from typing import List
+from typing import List, Any, Dict
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.chat_models import init_chat_model
 from langgraph.graph import StateGraph, START, END
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.checkpoint.memory import MemorySaver
 
 from dotenv import load_dotenv
@@ -39,8 +39,8 @@ class LangGraph:
             temperature=0,
         )
 
-        BM25_PATH = "db/bm25"
-        DB_PATH = "db/chroma_db"
+        BM25_PATH = "../../db/bm25"
+        DB_PATH = "../../db/chroma_db"
 
         ragconfig = RagConfig(db_path=DB_PATH)
         rag = Rag(config=ragconfig)
@@ -56,10 +56,10 @@ class LangGraph:
         self.summerized_llm = summerized_llm
         self.web_search = client
         self.retriever = retriever
-        self.app = self.build_graph(checkpointer=memory)
+        self.app = self._build_graph(checkpointer=memory)
         
     # nodes
-    def router_node(self, state: State):
+    def _router_node(self, state: State) -> Dict[str, Any]:
         print("[Router]: 경로 탐색 중...")        
         now = datetime.now()
         day_of_week = self.DAYS[now.weekday()]
@@ -113,7 +113,7 @@ class LangGraph:
             }
     
     # validation
-    def validate_node(self, state: State):
+    def _validate_node(self, state: State) -> Dict[str, Any]:
         print(f"[Validate] 지금까지 모은 정보를 검증합니다...")
         retried_count = state.get("retried_count", 0)
         question = state["messages"][-1].content
@@ -177,7 +177,7 @@ class LangGraph:
             }
 
     # RAG Retrieve Node
-    def rag_node(self, state: State):
+    def _rag_node(self, state: State) -> Dict[str, Any]:
         print("[RAG]: 내부 문서 검색 중...")
 
         queries = (state.get("rag_queries") or [state["messages"][-1].content])
@@ -212,7 +212,7 @@ class LangGraph:
         return {"documents": rag_results}
 
     # WebSearch Node
-    def web_search_node(self, state: State):
+    def _web_search_node(self, state: State) -> Dict[str, Any]:
         print("[Web]: 웹 검색 중...")
 
         queries = (state.get("web_queries") or [state["messages"][-1].content])
@@ -228,7 +228,7 @@ class LangGraph:
         return {"web_results": web_results}
     
     # weather node
-    def weather_node(self, state: State):
+    def _weather_node(self, state: State) -> Dict[str, Any]:
         days = state.get("weather_queries")
         print(f"[Weather]: 날씨 검색 중..")
         weather_results = []
@@ -246,7 +246,7 @@ class LangGraph:
         return {"weather_results": weather_results}
 
     # Answer Node
-    def chatbot_node(self, state: State):
+    def _chatbot_node(self, state: State) -> Dict[str, Any]:
         print("[Chatbot]: 최종 답변 생성 중...")
         
         now = datetime.now()
@@ -308,7 +308,7 @@ class LangGraph:
             "messages": message,
         }
 
-    def summarize_node(self, state: State):
+    def _summarize_node(self, state: State) -> Dict[str, Any]:
         print("[Summarize]: 대화 요약 중...")
         print("[Summarize]: 메시지 확인...\n", state["messages"])
 
@@ -351,7 +351,7 @@ class LangGraph:
                 }
             
     # routing
-    def route_nodes(self, state: State) -> List[str]:
+    def _route_nodes(self, state: State) -> List[str]:
         activated_nodes = []
         if state.get("rag_queries"):
             activated_nodes.append("rag")
@@ -363,23 +363,23 @@ class LangGraph:
             return ["chatbot"]
         return activated_nodes
 
-    def build_graph(self, checkpointer=None):
+    def _build_graph(self, checkpointer=None) -> CompiledStateGraph:
         workflow = StateGraph(State)
 
-        workflow.add_node("router", self.router_node)
-        workflow.add_node("rag", self.rag_node)
-        workflow.add_node("web", self.web_search_node)
-        workflow.add_node("weather", self.weather_node)
-        workflow.add_node("validator", self.validate_node)
-        workflow.add_node("chatbot", self.chatbot_node)
-        workflow.add_node("summarize", self.summarize_node)
+        workflow.add_node("router", self._router_node)
+        workflow.add_node("rag", self._rag_node)
+        workflow.add_node("web", self._web_search_node)
+        workflow.add_node("weather", self._weather_node)
+        workflow.add_node("validator", self._validate_node)
+        workflow.add_node("chatbot", self._chatbot_node)
+        workflow.add_node("summarize", self._summarize_node)
 
         workflow.add_edge(START, "router")
 
         intermediates = ["rag", "web", "weather", "chatbot"]
         workflow.add_conditional_edges(
             "router",
-            self.route_nodes,
+            self._route_nodes,
             intermediates
         )
         
@@ -388,7 +388,7 @@ class LangGraph:
         
         workflow.add_conditional_edges(
             "validator",
-            self.route_nodes,
+            self._route_nodes,
             intermediates
         )
         
@@ -397,9 +397,9 @@ class LangGraph:
 
         return workflow.compile(checkpointer=checkpointer)
     
-    def run(self, message: str, thread_id: str):
+    def run(self, message: str, thread_id: str) -> str:
         config = {"configurable": {"thread_id": thread_id}}
         inputs = {"messages": [HumanMessage(content=message)]}
         
-        result = self.app.invoke(inputs, config=config) # 이게 메시지가 쌓이나...?
+        result = self.app.invoke(inputs, config=config)
         return result.get("final_answer", self.ERROR_RESPONSE)
