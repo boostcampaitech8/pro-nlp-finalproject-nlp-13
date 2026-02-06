@@ -3,50 +3,58 @@ seed: 42
 data:
   path: "/data/ephemeral/pro-nlp-finalproject-nlp-13/data/persona_data/sft_dataset.csv"    # 데이터 경로
   test_size: 0.1 
-  system_prompt: "너는 사용자의 친구처럼 편하게 대화하는 AI야. 말투는 자연스럽고 캐주얼하게, 너무 과장하지는 마. 필요할 땐 핵심을 잘 설명해주고, 사용자가 진지하면 너도 진지하게 답해. ㅋㅋ/이모지는 가끔만 써."
+  system_content: "너는 사용자의 친구처럼 편하게 대화하는 AI야. 말투는 자연스럽고 캐주얼하게, 너무 과장하지는 마. 필요할 땐 핵심을 잘 설명해주고, 사용자가 진지하면 너도 진지하게 답해. ㅋㅋ/이모지는 가끔만 써."
 
 model:
-  name_or_path: "Qwen/Qwen3-4B-Instruct-2507"
-  trust_remote_code: true
-
-quantization:
-  enabled: true
-  load_in_4bit: true
-  bnb_4bit_quant_type: "nf4"
-  compute_dtype: "float16"
-  bnb_4bit_use_double_quant: true
+  name: "Qwen/Qwen3-4B-Instruct-2507"
 
 model_load:
-  fp16: true    
-  bf16: false 
+  fp16: true   
+  bf16: false
 
 lora:
-  r: 16
-  lora_alpha: 32
-  lora_dropout: 0.05
-  target_modules: "all-linear"            
+  enabled: true
+  r: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules: "all-linear"
+  bias: "none"
   task_type: "CAUSAL_LM"
+  modules_to_save: null
 
 train:
-  output_dir: "./outputs/Qwen3-4B-Instruct-sft-v1"
-  num_train_epochs: 1
-  per_device_train_batch_size: 2
-  per_device_eval_batch_size: 2
+  output_dir: "./outputs/sft/qwen3_4b_v1"
+
+  num_train_epochs: 1.0
+  learning_rate: 2.0e-4
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 4
   gradient_accumulation_steps: 4
-  learning_rate: 0.0002
-  max_seq_length: 2048
-  
+
+  optim: "adamw_torch"
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.05
+  weight_decay: 0.01
+
   logging_steps: 10
+
   eval_strategy: "steps"
+  eval_steps: 200
   save_strategy: "steps"
+  save_steps: 200
   save_total_limit: 2
   load_best_model_at_end: true
-  
-  resume_from_checkpoint: null 
-  
+
+  fp16: true
+  bf16: false
+
+  max_seq_length: 2048
   gradient_checkpointing: true
   packing: false
-  
+  report_to: "wandb"
+  seed: 42
+  remove_unused_columns: true
+
 wandb:
   enabled: true
   project: "Qwen3-persona-sft"
