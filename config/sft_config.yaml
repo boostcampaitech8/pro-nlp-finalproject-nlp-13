@@ -1,0 +1,30 @@
+model:
+  name_or_path: "Qwen/Qwen3-4B-Instruct-2507"
+  max_seq_length: 2048                   
+
+data:
+  path: "/Users/jangsehyeon/Downloads/sft_dataset.csv'"
+  test_size: 0.1 
+  system_prompt: "너는 사용자의 친구처럼 편하게 대화하는 AI야. 말투는 자연스럽고 캐주얼하게, 너무 과장하지는 마. 필요할 땐 핵심을 잘 설명해주고, 사용자가 진지하면 너도 진지하게 답해. ㅋㅋ/이모지는 가끔만 써."
+
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules: "all-linear"            
+  task_type: "CAUSAL_LM"
+
+training:
+  output_dir: "./sft_results"               # 결과 저장 경로
+  num_train_epochs: 1                       # 학습 반복 횟수 (테스트용 1회)
+  per_device_train_batch_size: 2            # 배치 사이즈 (메모리 고려해서 작게)
+  gradient_accumulation_steps: 4            # 그래디언트 누적 (배치 2 * 4 = 실제 배치 8 효과)
+  learning_rate: 2.0e-4                     # 학습률
+  fp16: false                               # 16비트 연산 (T4 GPU 등 구형이면 true)
+  bf16: true                                # A100, A10 등 최신 GPU면 true
+  logging_steps: 10                         # 로그 남기는 주기
+  save_strategy: "epoch"                    # 저장 주기
+  eval_strategy: "epoch"                    # 평가 주기
+  warmup_ratio: 0.03
+  lr_scheduler_type: "cosine"
+  gradient_checkpointing: true              # 메모리 절약 설정
