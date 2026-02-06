@@ -1,8 +1,8 @@
 dpo:
-  sft_adapter_path: "src/models/qwen_sft"
+  sft_adapter_path: "src/models/qwen_sft_debug"
 
   trainer:
-    output_dir: "src/models/qwen_dpo"
+    output_dir: "src/models/qwen_debug_dpo"
 
     num_train_epochs: 3
     per_device_train_batch_size: 4
@@ -57,7 +57,7 @@ model:
 
 wandb:
   enabled: true
-  run_name: "qwen_dpo_10000"
-  project_name: "DPO-qwen-normal"
+  run_name: "qwen_debug_dpo_10000"
+  project_name: "DPO-qwen-debug-normal"
   entity: "pro-nlp-final-13"
   dir: "./wandb"
