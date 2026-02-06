@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import requests
 from dotenv import load_dotenv
 import os
@@ -42,14 +42,11 @@ def get_forecast(city: str) -> dict:
             "일시": item["dt_txt"],
             "섭씨": item["main"]["temp"],
             "체감": item["main"]["feels_like"],
-            "습도": item["main"]["humidity"],
-            "날씨": item["weather"][0]["description"],
             "강수량": item.get("rain", {}).get("3h", 0),
             "적설량": item.get("snow", {}).get("3h", 0) / 10,
         })
 
     return {"coord": coord, "forecasts": forecasts}
-
 
 def forecast_tool(city: str, days: int = 1) -> str:
     """

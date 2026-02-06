@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 from src.RAG.rag import Rag, RagConfig
 from src.RAG.hybrid_retriever import HybridRetriever, RetrieverConfig
 
-from AGENT.weather_tools import forecast_tool
+from src.AGENT.tool.weather import forecast_tool
 from src.AGENT.prompt.prompt import Router, ChatBot, Summarizer, Validator
 
 from google import genai
@@ -25,6 +25,7 @@ from google import genai
 load_dotenv()
 class LangGraph:
     DAYS = ["월", "화", "수", "목", "금", "토", "일"]
+    ERROR_RESPONSE = "ㅋㅋㅋ 미안. 다시 한번 말해줄래?"
     def __init__(self):
         llm = init_chat_model(
             "gpt-4o-mini",
@@ -53,7 +54,7 @@ class LangGraph:
         self.llm = llm
         self.structured_llm = llm.with_structured_output(RouterDecision)
         self.summerized_llm = summerized_llm
-        self.client = client
+        self.web_search = client
         self.retriever = retriever
         self.app = self.build_graph(checkpointer=memory)
         
@@ -179,10 +180,7 @@ class LangGraph:
     def rag_node(self, state: State):
         print("[RAG]: 내부 문서 검색 중...")
 
-        queries = (
-            state.get("rag_queries")
-            or [state["messages"][-1].content]
-        )
+        queries = (state.get("rag_queries") or [state["messages"][-1].content])
         builded_documents = state.get("documents", [])
 
         rag_results = []
@@ -217,14 +215,11 @@ class LangGraph:
     def web_search_node(self, state: State):
         print("[Web]: 웹 검색 중...")
 
-        queries = (
-            state.get("web_queries")
-            or [state["messages"][-1].content]
-        )
-        
+        queries = (state.get("web_queries") or [state["messages"][-1].content])
         web_results = []
+        
         for query in queries:
-            results = self.client.models.generate_content(
+            results = self.web_search.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=query,)
             web_results.append(results.text)
@@ -306,7 +301,7 @@ class LangGraph:
             
         except Exception as e:
             print(f"[Chatbot][ERROR] chatbot fallback due to error: {str(e)}")
-            final_answer = "ㅋㅋㅋ 미안. 다시 한번 말해줄래?"
+            final_answer = self.ERROR_RESPONSE
         
         return {
             "final_answer": final_answer,
@@ -406,5 +401,5 @@ class LangGraph:
         config = {"configurable": {"thread_id": thread_id}}
         inputs = {"messages": [HumanMessage(content=message)]}
         
-        result = self.app.invoke(inputs, config=config)
-        return result.get("final_answer", "답변을 생성하지 못했습니다.")
+        result = self.app.invoke(inputs, config=config) # 이게 메시지가 쌓이나...?
+        return result.get("final_answer", self.ERROR_RESPONSE)
