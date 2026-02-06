@@ -1,16 +1,33 @@
-from src.rag.rag import RagConfig, Rag
-from src.rag.data_loader import make_docs
+from src.RAG.rag import RagConfig, Rag
+from src.RAG.data_loader import make_docs
 from dotenv import load_dotenv
+from typing import Any, Dict
+import yaml
+
+import argparse
+
+def load_yaml(path: str) -> Dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
     
 def main():
-    load_dotenv() # api key load
-
-    DB_PATH = "./db/chroma_db"
-    BM25_PATH = "./db/bm25"
-    embedding_model_name = "solar-embedding-1-large"
-    file_path = ['data/stay_crawling.csv', 'data/sports_crawling.csv', 'data/busan_rag_data.json']
-    documents = make_docs(file_path)
-    config = RagConfig(db_path=DB_PATH, bm25_path=BM25_PATH, embedding_model_name=embedding_model_name, documents=documents)
+    load_dotenv()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--config",
+        type=str,
+        required=True,
+        help="e.g. config/rag.yaml (config 폴더는 src와 같은 레벨)",
+    )
+    args = parser.parse_args()
+    cfg = load_yaml(args.config)
+    embedding_cfg = cfg.get("embedding", {})
+    file_paths = embedding_cfg.get("file_path", [])
+    model_name = embedding_cfg.get("model_name", "")
+    db_path = cfg.get("db_path", "")
+    bm25_path = cfg.get("bm25_path", "")
+    documents = make_docs(file_paths)
+    config = RagConfig(db_path=db_path, bm25_path=bm25_path, embedding_model_name=model_name, documents=documents)
     rag = Rag(config=config)
     rag.build()
     
