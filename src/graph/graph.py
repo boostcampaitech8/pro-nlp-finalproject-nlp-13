@@ -184,8 +184,16 @@ class LangGraph:
             or [state.get("query")]
             or [state["messages"][-1].content]
         )
-        
+        builded_documents = state.get("documents", [])
+
         rag_results = []
+        existing_ids = set()
+
+        for d in builded_documents:
+            meta = d.get("metadata", {})
+            doc_id = meta.get("id")
+            if doc_id:
+                existing_ids.add(doc_id)
 
         for query in queries:
             docs = self.retriever.retrieve(query)
@@ -193,6 +201,8 @@ class LangGraph:
                 text = getattr(doc, "page_content", str(doc))
                 metadata = getattr(doc, "metadata", {})
                 doc_id = metadata.get("id")
+                if doc_id in existing_ids:
+                    continue
                 documents = [
                     {
                         "text": text,
@@ -200,6 +210,7 @@ class LangGraph:
                         "doc_id": doc_id
                     }
                 ]
+                
                 rag_results.extend(documents)
         return {"documents": rag_results}
 
