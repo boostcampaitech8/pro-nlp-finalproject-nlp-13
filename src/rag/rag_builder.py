@@ -1,15 +1,15 @@
-from src.RAG.rag import RagConfig, Rag
-from src.RAG.data_loader import make_docs
-from dotenv import load_dotenv
-from typing import Any, Dict
-import yaml
+from __future__ import annotations
 
 import argparse
+from typing import Any, Dict
 
-def load_yaml(path: str) -> Dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
-    
+import yaml
+from dotenv import load_dotenv
+
+from src.rag.data_loader import make_docs
+from src.rag.rag import RagConfig, Rag
+
+
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser()
@@ -30,6 +30,12 @@ def main():
     config = RagConfig(db_path=db_path, bm25_path=bm25_path, embedding_model_name=model_name, documents=documents)
     rag = Rag(config=config)
     rag.build()
+
+
+def load_yaml(path: str) -> Dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
     
 if __name__ == "__main__":
     main()

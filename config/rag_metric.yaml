@@ -1,0 +1,16 @@
+testdata:
+  data_paths:
+    guidebook: data/guidebook/busan_rag_data.json
+    sports: data/crawling/sports_crawling.csv
+    stay: data/crawling/stay_crawling.csv
+  output_path: data/singlehop_testset.json
+  testset_size: 100
+
+evaluation:
+  testset_path: data/singlehop_testset.json
+  chroma_db_path: src/results/db/chroma_db
+  bm25_path: src/results/db/bm25
+  collection_name: test
+  embedding_model: solar-embedding-1-large
+  llm_model: gpt-4o-mini
+  retrieval_k: 5

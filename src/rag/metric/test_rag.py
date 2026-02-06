@@ -1,32 +1,28 @@
-import os
-import json
+import argparse
 import asyncio
+import json
+import os
+import sys
 from typing import List, Dict, Any
 
-import pandas as pd
+import yaml
 from dotenv import load_dotenv
-from openai import AsyncOpenAI, OpenAI
-from datasets import Dataset
+from openai import AsyncOpenAI
 from pydantic import BaseModel
-
-from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 
 from ragas.metrics.collections import ContextRecall, ContextPrecision
 from ragas.llms import llm_factory
-from ragas.embeddings import OpenAIEmbeddings as RagasOpenAIEmbeddings
 from ragas import experiment
 
-import sys
-import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from src.RAG.rag import Rag, RagConfig
-from src.RAG.hybrid_retriever import HybridRetriever, RetrieverConfig
+from src.rag.rag import Rag, RagConfig
+from src.rag.hybrid_retriever import HybridRetriever, RetrieverConfig
 
-CONFIG = {
+DEFAULT_CONFIG = {
     "testset_path": "data/singlehop_testset.json",
     "chroma_db_path": "db/chroma_db",
+    "bm25_path": "db/bm25",
     "collection_name": "test",
     "embedding_model": "solar-embedding-1-large",
     "llm_model": "gpt-4o-mini",
@@ -34,26 +30,52 @@ CONFIG = {
 }
 
 
-async def main():
+def load_eval_config(path: str) -> Dict[str, Any]:
+    if not os.path.exists(path):
+        print(f"[RAG][WARN] config not found: {path}. Using defaults.")
+        return DEFAULT_CONFIG
+    with open(path, "r", encoding="utf-8") as f:
+        raw = yaml.safe_load(f) or {}
+    eval_cfg = raw.get("evaluation", {})
+    merged = DEFAULT_CONFIG.copy()
+    merged.update(eval_cfg)
+    return merged
+
+
+async def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/rag_metric.yaml",
+        help="e.g. config/rag_metric.yaml",
+    )
+    args = parser.parse_args()
+    cfg = load_eval_config(args.config)
+
     load_dotenv()
     
     async_client = AsyncOpenAI()
-    llm = llm_factory(CONFIG["llm_model"], client=async_client)
-    embeddings = OpenAIEmbeddings(model=CONFIG["embedding_model"])
+    llm = llm_factory(cfg["llm_model"], client=async_client)
 
-    BM25_PATH = "db/bm25"
-    DB_PATH = "db/chroma_db"
-    ragconfig = RagConfig(db_path=DB_PATH)
+    bm25_path = cfg["bm25_path"]
+    db_path = cfg["chroma_db_path"]
+    ragconfig = RagConfig(
+        db_path=db_path,
+        bm25_path=bm25_path,
+        embedding_model_name=cfg["embedding_model"],
+        collection_name=cfg["collection_name"],
+    )
     rag = Rag(config=ragconfig)
     db = rag.load()
-    config = RetrieverConfig(db=db, pickle_path=BM25_PATH)
+    config = RetrieverConfig(db=db, pickle_path=bm25_path, top_k=cfg["retrieval_k"])
     retriever = HybridRetriever(config=config)
 
-    if not os.path.exists(CONFIG["testset_path"]):
-        print(f"❌ 파일을 찾을 수 없습니다: {CONFIG['testset_path']}")
+    if not os.path.exists(cfg["testset_path"]):
+        print(f"❌ 파일을 찾을 수 없습니다: {cfg['testset_path']}")
         return
 
-    with open(CONFIG["testset_path"], 'r', encoding='utf-8') as f:
+    with open(cfg["testset_path"], 'r', encoding='utf-8') as f:
         testset_dict = json.load(f)
 
     evaluation_samples = prepare_rag_dataset(testset_dict, retriever)
