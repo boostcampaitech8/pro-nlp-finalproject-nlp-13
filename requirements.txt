@@ -1,47 +1,27 @@
-# --- 핵심 프레임워크 ---
-transformers==4.40.2
-langchain>=0.3.0
-langchain-community>=0.3.0
-langchain-text-splitters>=0.3.0
-langchain-openai>=0.3.0
-langchain-chroma>=0.2.0
-langchain-upstage
-google-genai
-
-# --- RAG 및 PDF 처리 필수 패키지 ---
-pymupdf==1.24.9
-chromadb==0.5.3
-sentence-transformers==3.0.1
-deepeval
-ragas
-langgraph==1.0.7
-tavily-python==0.3.5
-rank_bm25
-
 # --- 기존 라이브러리 스펙 ---
-trl==0.8.6
+transformers==4.54.1
+trl==0.13.0
 ipykernel==6.29.5
 ipywidgets==8.1.5
 scikit-learn==1.5.2
-transformers==4.40.2
 matplotlib==3.9.2
 evaluate==0.4.3
-peft==0.10.0
+peft==0.18.0
 requests==2.32.5
 numpy==1.26.4
 pandas==2.2.2
 openpyxl==3.1.5
 rich>=10.14.0,<14
+wandb
 
-# --- streamlit 관련 라이브러리 ---
-streamlit==1.36.0
-google-generativeai
-altair==5.4.0
-pydeck==0.9.1
-pillow==10.4.0  
-toml==0.10.2
-cachetools==5.4.0
-protobuf==5.27.3
-
-# --- dpo 관련 라이브러리 ---
-distilabel[argilla, hf-inference-endpoints]
+# --- RAG 및 PDF 처리 필수 패키지 ---
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-text-splitters>=0.3.0
+langchain-openai>=0.3.0
+langchain-chroma>=0.2.0
+chromadb==0.5.3
+sentence-transformers==3.0.1
+langgraph==1.0.7
+tavily-python==0.3.5
+rank_bm25
