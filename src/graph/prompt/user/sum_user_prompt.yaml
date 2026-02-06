@@ -1,7 +1,0 @@
-_type: prompt
-input_variables:
-  - question
-  - bot_response
-template: |
-  사용자 질문: {question}
-  모델의 응답: {bot_response}
