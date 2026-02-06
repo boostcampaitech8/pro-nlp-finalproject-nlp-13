@@ -14,11 +14,11 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from dotenv import load_dotenv
 
-from src.rag.rag import Rag, RagConfig
-from src.rag.hybrid_retriever import HybridRetriever, RetrieverConfig
+from src.RAG.rag import Rag, RagConfig
+from src.RAG.hybrid_retriever import HybridRetriever, RetrieverConfig
 
-from src.weather.weather_tools import forecast_tool
-from src.graph.prompt.prompt import Router, ChatBot, Summarizer, Validator
+from AGENT.weather_tools import forecast_tool
+from src.AGENT.prompt.prompt import Router, ChatBot, Summarizer, Validator
 
 from google import genai
 
@@ -63,7 +63,7 @@ class LangGraph:
         now = datetime.now()
         day_of_week = self.DAYS[now.weekday()]
         current_time = f"{now.strftime('%Y년 %m월 %d일')} {day_of_week}요일"
-        question = state.get("query") or state["messages"][-1].content
+        question = state["messages"][-1].content
         
         prompt = ChatPromptTemplate.from_messages([
             ("system", Router.system), 
@@ -115,7 +115,7 @@ class LangGraph:
     def validate_node(self, state: State):
         print(f"[Validate] 지금까지 모은 정보를 검증합니다...")
         retried_count = state.get("retried_count", 0)
-        question = state.get("query") or state["messages"][-1].content
+        question = state["messages"][-1].content
         documents = state.get("documents", []),
         web_results = state.get("web_results", []),
         weather_results = state.get("weather_results", [])
@@ -181,7 +181,6 @@ class LangGraph:
 
         queries = (
             state.get("rag_queries")
-            or [state.get("query")]
             or [state["messages"][-1].content]
         )
         builded_documents = state.get("documents", [])
@@ -220,7 +219,6 @@ class LangGraph:
 
         queries = (
             state.get("web_queries")
-            or [state.get("query")]
             or [state["messages"][-1].content]
         )
         
@@ -237,7 +235,7 @@ class LangGraph:
     # weather node
     def weather_node(self, state: State):
         days = state.get("weather_queries")
-        print(f"[Weather]: 날씨 검색 중.. {days}")
+        print(f"[Weather]: 날씨 검색 중..")
         weather_results = []
         for day in days:
             if isinstance(day, int):
@@ -246,7 +244,7 @@ class LangGraph:
                 print(f"[Weather] the weather is. .. {day} and {result}")
                 weather_results.append(result)
             else:
-                                # todo delete it
+                # todo delete it
                 print(f"[Weather] the model's answer is not in int...")
                 continue
             

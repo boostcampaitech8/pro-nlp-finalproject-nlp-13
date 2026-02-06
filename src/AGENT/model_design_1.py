@@ -3,7 +3,7 @@ import time
 import uuid
 from dotenv import load_dotenv, find_dotenv
 
-from src.graph.graph import LangGraph
+from src.AGENT.graph import LangGraph
 
 load_dotenv(find_dotenv())
 
