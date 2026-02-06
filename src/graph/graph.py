@@ -5,6 +5,7 @@ import time
 from states import State, RouterDecision
 from typing import List
 from langchain_core.messages import SystemMessage, RemoveMessage, HumanMessage
+from langchain_core.prompts import load_prompt
 from langchain.chat_models import init_chat_model
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -20,99 +21,6 @@ from datetime import datetime
 from google import genai
 
 load_dotenv()
-
-VALIDATION_SYSTEM_PROMPT = """
-당신은 검색 결과가 사용자의 질문을 해결하기에 충분한지 판단하는 **Sufficiency Validator(충족 여부 판단기)**입니다.
-사용자 질문과 제공된 검색 결과(rag, web, weather)를 비교하여 판단하세요.
-
-**★ 핵심 원칙 (가장 중요):**
-1. **중복 검색 금지:** 이미 검색 결과에 답변할 수 있는 정보가 포함되어 있다면, 해당 카테고리의 쿼리는 반드시 `null`을 반환해야 합니다.
-2. **완벽주의 금지:** 정보가 1개라도 확실하게 있다면 "충분하다"고 판단하세요. (예: 호텔이 하나라도 추천되었으면 추가 검색 불필요)
-3. **불필요한 생성 금지:** 억지로 쿼리를 만들어내지 마세요.
-
-**판단 기준:**
-- **weather:** 질문한 날짜/지역의 기상 정보가 결과에 있는가? -> 있으면 `null`
-- **rag:** 질문한 장소(숙소, 맛집 등)에 대한 정보가 1개 이상 있는가? -> 있으면 `null`
-- **web:** 운영 시간, 가격 등 구체적 사실이 결과 텍스트에 포함되어 있는가? -> 있으면 `null`
-
-**출력 형식 (JSON):**
-{
-  "rag_queries": ["쿼리"] 또는 null,
-  "web_queries": ["쿼리"] 또는 null,
-  "weather_queries": ["쿼리"] 또는 null,
-  "reason": 짧은 이유
-}
-"""
-
-VALIDATION_USER_PROMPT = """
-사용자 질문:
-{question}
-
-rag 결과:
-{documents}
-
-web 결과:
-{web_results}
-
-weather 결과:
-{weather_results}
-"""
-
-ROUTER_SYSTEM_PROMPT = """
-오늘 날짜는 다음과 같습니다: {current_time}
-일주일은 다음 요일을 순서대로 포함합니다.: {days}
-당신은 사용자 질문을 [rag, web, weather, direct]로 분류하는 Router입니다.
-아래 규칙을 엄격히 준수하여 JSON을 생성하세요.
-
-**★핵심 제약 사항 (위반 시 오답 처리):**
-1. **개수 제한:** 각 카테고리(주제) 당 **가장 정확한 '단 하나(1개)'의 쿼리**만 생성하세요.
-2. **중복 금지:** 같은 의미의 질문을 여러 번 쓰지 마세요. (유의어 나열 금지)
-3. **날씨 포맷:** weather_queries는 반드시 숫자 형식이어야 합니다.
-
-**분류 규칙:**
-1. **rag:** 장소, 숙박, 맛집, 명소 정보 -> 리스트에 **핵심 키워드 1개**만.
-2. **web:** 실시간 정보(교통편 시간표, 티켓 예매, 뉴스) -> 리스트에 **핵심 문장 1개**만.
-3. **weather:** 날씨/기온 -> (내일=1, 오늘=0, 이틀후=2) 형식.
-4. **direct:** 인사, 농담.
-
-**출력 예시 (반드시 이 형태를 따를 것):**
-User: "내일 부산 날씨랑 해운대 깨끗한 호텔 추천해주고 서울 가는 기차표 제일 빠른거 알려줘"
-Output:
-{{
-  "rag_queries": ["해운대 깨끗한 호텔"], 
-  "web_queries": ["서울행 부산 출발 기차표 최단시간"],
-  "weather_queries": [1],
-  "direct": null,
-  "reason": 짧은 설명
-}}
-"""
-
-CHATBOT_PROMPT = """
-당신은 친절한 여행 가이드입니다.
-사용자의 질문에 대해 아래 [정보]를 바탕으로 답변하세요.
-정보가 없으면 답변하되, 진실된 정보만 답변하세요. 만들어낸 정보는 답변하지 않습니다.
-출력은 무조건 줄글 형식으로 줍니다. json 이나 마크다운 형식으로 절대 주지 마십시오.
-현재 질문은 다음과 같습니다: {query}
-
-[참고 문서]\n{context_text}\n
-[인터넷 검색 결과]\n{web_text}\n
-[날씨]\n{weather_text}
-"""
-
-SUMMARIZE_PROMPT = """
-사용자 질문: {query}
-RAG 결과:
-{context_text}
-
-web 서치 결과:
-{web_text}
-
-날씨 서치 결과:
-{weather_text}
-
-위 내용을 바탕으로 전체 대화 내용을 짧게 요약해줘.
-"""
-
 class LangGraph:
     def __init__(self):
         llm = init_chat_model(
@@ -158,7 +66,8 @@ class LangGraph:
         structured_llm = self.llm.with_structured_output(RouterDecision)
         question = state.get("query") or state["messages"][-1].content
         
-        prompt = ROUTER_SYSTEM_PROMPT.format(
+        router_system_prompt = load_prompt("./prompt/router_system_prompt.yaml")
+        prompt = router_system_prompt.format(
             current_time = current_time,
             days = days
         )
@@ -211,19 +120,21 @@ class LangGraph:
                 }
         question = state.get("query") or state["messages"][-1].content
         structured_llm = self.llm.with_structured_output(RouterDecision)
+        validation_system_prompt = load_prompt("./prompt/val_system_prompt.yaml")
+        validation_user_prompt = load_prompt("./prompt/val_user_prompt.yaml")
 
-        user_prompt = VALIDATION_USER_PROMPT.format(
+        user_prompt = validation_user_prompt.format(
             question=question,
             documents=state.get("documents", []),
             web_results=state.get("web_results", []),
             weather_results=state.get("weather_results", [])
         )
         messages = [
-            SystemMessage(content=VALIDATION_SYSTEM_PROMPT),
+            SystemMessage(content=validation_system_prompt),
             HumanMessage(content=user_prompt),
         ]
         # todo delete it 
-        print(f"[Validate] the processing..: \n {VALIDATION_SYSTEM_PROMPT}")
+        print(f"[Validate] the processing..: \n {validation_system_prompt}")
         print(f"[Validate] the processing..: \n {user_prompt}")
         print("--------------------------------------------")        
         try:
@@ -347,7 +258,9 @@ class LangGraph:
         weathers = state.get("weather_results", [])
         weather_text = "\n".join(weathers)
         
-        prompt = CHATBOT_PROMPT.format(
+        chatbot_prompt = load_prompt("./prompt/chatbot_prompt.yaml")
+        
+        prompt = chatbot_prompt.format(
             query=query,
             context_text=context_text,
             web_text=web_text,
@@ -378,7 +291,8 @@ class LangGraph:
         weathers = state.get("weather_results", [])
         weather_text = "\n".join(weathers)
         
-        prompt = SUMMARIZE_PROMPT.format(
+        summarize_prompt = load_prompt("./prompt/summarize_prompt.yaml")
+        prompt = summarize_prompt.format(
             query=query,
             context_text=context_text,
             web_text=web_text,

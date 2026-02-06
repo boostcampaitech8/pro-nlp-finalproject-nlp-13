@@ -1,0 +1,18 @@
+_type: prompt
+input_variables:
+  - question
+  - documents
+  - web_results
+  - weather_results
+template: |
+  사용자 질문:
+  {question}
+
+  rag 결과:
+  {documents}
+
+  web 결과:
+  {web_results}
+
+  weather 결과:
+  {weather_results}
