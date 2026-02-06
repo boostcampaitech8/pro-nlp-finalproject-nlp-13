@@ -1,0 +1,58 @@
+# server.py
+import sys
+import os
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv, find_dotenv
+
+# 현재 폴더를 경로에 추가 (혹시 모를 import 에러 방지)
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# 기존 로직 임포트 (사진의 src 구조에 맞춤)
+try:
+    from src.graph.graph import LangGraph
+except ImportError as e:
+    print(f"Import Error: {e}")
+    print("src 폴더가 server.py와 같은 위치에 있는지 확인해주세요.")
+    # 테스트용 (실제론 지우세요)
+    class LangGraph:
+        def run(self, message, thread_id):
+            return f"테스트 응답: {message}"
+
+load_dotenv(find_dotenv())
+
+app = FastAPI()
+
+# React(3000번 포트) 허용
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 봇 초기화
+bot_instance = LangGraph()
+
+class ChatRequest(BaseModel):
+    message: str
+    thread_id: str
+
+@app.post("/chat")
+async def chat_endpoint(req: ChatRequest):
+    try:
+        response_text = bot_instance.run(
+            message=req.message,
+            thread_id=req.thread_id
+        )
+        return {"response": response_text}
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    # 0.0.0.0으로 열어서 외부 접속 가능하게 함
+    uvicorn.run(app, host="0.0.0.0", port=8000)
