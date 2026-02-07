@@ -58,7 +58,7 @@ def load_model_with_two_adapters(
                 "SFT 학습을 먼저하거나, config YAML 파일 경로를 확인하세요."
             )
     print(f"\n ===== DPF Models 로딩 =====") 
-    print(f"\n  1. Base Model 로딩")      
+    print(f"\n  1. Base Model 로딩")
     base_model = AutoModelForCausalLM.from_pretrained(
         model_cfg.model_name_or_path,
         device_map=model_cfg.device_map,
@@ -66,7 +66,7 @@ def load_model_with_two_adapters(
         use_cache=False,
     )
 
-    print("\n   2. SFT 모델 로딩")
+    print("\n   2. SFT 모델 로딩 : {sft_adapter_path}")
     model = PeftModel.from_pretrained(
         base_model,
         sft_adapter_path,
@@ -74,7 +74,7 @@ def load_model_with_two_adapters(
         adapter_name=train_adapter_name,
     )
 
-    print("\n   3. Reference 모델 로딩")
+    print("\n   3. Reference 모델 로딩 : {sft_adapter_path}")
     model.load_adapter(
         sft_adapter_path,
         is_trainable=False,

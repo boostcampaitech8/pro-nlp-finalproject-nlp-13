@@ -1,8 +1,8 @@
 dpo:
-  sft_adapter_path: "src/models/qwen_sft_debug"
+  sft_adapter_path: "outputs/sft/qwen3_4b_v1"
 
   trainer:
-    output_dir: "src/models/qwen_debug_dpo"
+    output_dir: "outputs/dpo/qwen3_4b_dpo_v1"
 
     num_train_epochs: 3
     per_device_train_batch_size: 4
@@ -40,7 +40,7 @@ dpo:
     seed: 42
 
   data:
-    train_path: "data/persona_data/dpo_dataset.json"
+    train_path: "data/persona_data/dpo_train_dataset.json"
     seed: 42
     csv_dir: "./data/dpo_outputs"
     margin_threshold: 0.995
@@ -57,7 +57,7 @@ model:
 
 wandb:
   enabled: true
-  run_name: "qwen_debug_dpo_10000"
+  run_name: "qwen_dpo_v1"
   project_name: "DPO-qwen-debug-normal"
   entity: "pro-nlp-final-13"
   dir: "./wandb"
