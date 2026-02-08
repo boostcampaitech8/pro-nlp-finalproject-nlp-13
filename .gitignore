@@ -69,7 +69,7 @@ output.csv
 db
 
 # dependencies
-fronted/node_modules
+frontend/node_modules
 /.pnp
 .pnp.js
 
