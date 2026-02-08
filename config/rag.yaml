@@ -1,15 +1,15 @@
 embedding:
   file_path: ["data/crawling/sports_crawling.csv", "data/crawling/stay_crawling.csv", "data/guidebook/busan_rag_data.json"]
-  model_name: "solar-embedding-1-large"
-db_path: "src/results/db/chroma_db"
-bm25_path: "src/results/db/bm25"
 
 db:
+  model_name: "solar-embedding-1-large"
   path: "src/results/db/chroma_db"
-  bm25_path: "src/results/db/bm25"
+  bm25_path: "src/results/db/bm25.pkl"
+  collection_name: "test"
+
+retriever:
   top_k: 5
-  dense_k: 5
+  dense_k: 20
   bm25_k: 20
   search_type: "similarity"
   weights: [0.6, 0.4]
-  collection_name: "test"

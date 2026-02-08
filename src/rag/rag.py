@@ -2,21 +2,29 @@ from __future__ import annotations
 
 import os
 import pickle
+from typing import Any, Dict
 from dataclasses import dataclass, field
+import yaml
 
 from langchain_chroma import Chroma
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from langchain_upstage import UpstageEmbeddings
 
+def load_yaml(path: str) -> Dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+    
+cfg = load_yaml("/Users/kyh/NaverAI/final_proj/pro-nlp-finalproject-nlp-13/config/rag.yaml")
+db_cfg = cfg.get("db", {})
 
 @dataclass(frozen=True)
 class RagConfig:
-    db_path: str = "db/chroma_db"
-    bm25_path: str = "db/bm25.pkl"
-    embedding_model_name: str = "solar-embedding-1-large"
+    db_path: str = db_cfg.get("path", "")
+    bm25_path: str = db_cfg.get("bm25_path", "")
+    embedding_model_name: str = db_cfg.get("model_name", "solar-embedding-1-large")
     documents: list = field(default_factory=list)
-    collection_name: str = "test"
+    collection_name: str = db_cfg.get("collection_name", "")
 
 
 class Rag:
