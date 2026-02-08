@@ -23,8 +23,11 @@ def main():
     cfg = load_yaml(args.config)
     embedding_cfg = cfg.get("embedding", {})
     file_paths = embedding_cfg.get("file_path", [])
+    model_name = embedding_cfg.get("model_name", "")
+    db_path = cfg.get("db_path", "")
+    bm25_path = cfg.get("bm25_path", "")
     documents = make_docs(file_paths)
-    config = RagConfig(documents=documents)
+    config = RagConfig(db_path=db_path, bm25_path=bm25_path, embedding_model_name=model_name, documents=documents)
     rag = Rag(config=config)
     rag.build()
 

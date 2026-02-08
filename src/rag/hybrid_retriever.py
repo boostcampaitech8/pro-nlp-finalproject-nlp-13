@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import pickle
 from dataclasses import dataclass, field
-from typing import List, Any, Dict
-import yaml
+from typing import List
 
 from langchain_chroma import Chroma
 from langchain_community.retrievers import BM25Retriever
@@ -11,23 +10,15 @@ from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStoreRetriever
 
 
-def load_yaml(path: str) -> Dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
-    
-cfg = load_yaml("/Users/kyh/NaverAI/final_proj/pro-nlp-finalproject-nlp-13/config/rag.yaml")
-db_cfg = cfg.get("db", {})
-retriever_cfg = cfg.get("retriever", {})
-
 @dataclass(frozen=True)
 class RetrieverConfig:
-    db: Chroma 
-    bm24_path: str = db_cfg.get("bm25_path", "")
-    top_k: int = retriever_cfg.get("top_k", 5)
-    bm25_k: int = retriever_cfg.get("bm25_k", 20)
-    search_type: str = retriever_cfg.get("search_type", "simpilarity")
-    search_kwargs: dict = field(default_factory=lambda: {"k": retriever_cfg.get("dense_k", 20)})   
-    weights: list = field(default_factory=lambda: retriever_cfg.get("weights", [0.6, 0.4]))
+    db: Chroma
+    pickle_path: str
+    top_k: int = 5
+    bm25_k: int = 20
+    search_type: str = "similarity"
+    search_kwargs: dict = field(default_factory=lambda: {"k": 20})   
+    weights: list = field(default_factory=lambda: [0.6, 0.4])
     
 class HybridRetriever:
     def __init__(self, config: RetrieverConfig):
@@ -43,8 +34,8 @@ class HybridRetriever:
         return dense_retriever
 
     def _load_bm25_retriever(self) -> BM25Retriever:
-        print(f"[RETRIEVER] making bm25 retriever with PATH: {self.config.bm24_path}")
-        with open(self.config.bm24_path, "rb") as f:
+        print(f"[RETRIEVER] making bm25 retriever with PATH: {self.config.pickle_path}")
+        with open(self.config.pickle_path, "rb") as f:
             bm25 = pickle.load(f)
         bm25.k = self.config.bm25_k
         return bm25
