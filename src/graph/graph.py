@@ -115,11 +115,20 @@ web 서치 결과:
 
 class LangGraph:
     def __init__(self):
+        # llm = init_chat_model(
+        #     "gpt-4o-mini",
+        #     # model_provider="upstage",
+        #     temperature=0,
+        # )
+            
         llm = init_chat_model(
-            "gpt-4o-mini",
+            model="qwen3_4b_v1",
             # model_provider="upstage",
+            # base_url="http://198.18.13.161:8080/v1",
+            api_key = "None",
             temperature=0,
         )
+        
         
         summerized_llm = init_chat_model(
             "solar-mini",
