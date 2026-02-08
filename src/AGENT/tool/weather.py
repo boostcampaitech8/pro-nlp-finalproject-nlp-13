@@ -62,8 +62,12 @@ def forecast_tool(city: str, days: int = 1) -> str:
 
     coord = data["coord"]
     forecasts = data["forecasts"]
-
-    target_date = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
+    
+    if days > 365:
+        target_date_obj = datetime.strptime(str(days), "%Y%m%d")
+        target_date = target_date_obj.strftime("%Y-%m-%d")
+    else:
+        target_date = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
     filtered = [f for f in forecasts if f["일시"].startswith(target_date)]
 
     if not filtered:

@@ -32,6 +32,20 @@ class LangGraph:
             # model_provider="upstage",
             temperature=0,
         )
+        chatbot = init_chat_model(
+            "gpt-4o-mini",
+            # model_provider="upstage",
+            temperature=0,
+        )
+        
+        # chatbot = init_chat_model(
+        #     model="dpo-final-policy",
+        #     model_provider="openai",
+        #     api_key="none",
+        #     #base_url="http://localhost:8000/v1",
+        #     base_url="http://127.0.0.1:8080/v1",
+        #     temperature=0.1,
+        #     max_tokens=2048)
         
         summerized_llm = init_chat_model(
             "solar-mini",
@@ -39,8 +53,8 @@ class LangGraph:
             temperature=0,
         )
 
-        BM25_PATH = "../../db/bm25"
-        DB_PATH = "../../db/chroma_db"
+        BM25_PATH = "../results/db/bm25.pkl"
+        DB_PATH = "../results/db/chroma_db"
 
         ragconfig = RagConfig(db_path=DB_PATH)
         rag = Rag(config=ragconfig)
@@ -52,6 +66,7 @@ class LangGraph:
         client = genai.Client()
 
         self.llm = llm
+        self.chatbot = chatbot
         self.structured_llm = llm.with_structured_output(RouterDecision)
         self.summerized_llm = summerized_llm
         self.web_search = client
