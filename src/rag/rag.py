@@ -12,8 +12,8 @@ from langchain_upstage import UpstageEmbeddings
 
 @dataclass(frozen=True)
 class RagConfig:
-    db_path: str = "db/chroma_db"
-    bm25_path: str = "db/bm25.pkl"
+    db_path: str = "src/db/chroma_db"
+    bm25_path: str = "src/db/bm25.pkl"
     embedding_model_name: str = "solar-embedding-1-large"
     documents: list = field(default_factory=list)
     collection_name: str = "test"
