@@ -3,13 +3,3 @@ embedding:
   model_name: "solar-embedding-1-large"
 db_path: "src/results/db/chroma_db"
 bm25_path: "src/results/db/bm25"
-
-db:
-  path: "src/results/db/chroma_db"
-  bm25_path: "src/results/db/bm25"
-  top_k: 5
-  dense_k: 5
-  bm25_k: 20
-  search_type: "similarity"
-  weights: [0.6, 0.4]
-  collection_name: "test"
