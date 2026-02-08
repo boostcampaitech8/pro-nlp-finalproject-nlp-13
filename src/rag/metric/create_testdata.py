@@ -1,12 +1,16 @@
-import os
-import json
+from __future__ import annotations
+
+import argparse
 import asyncio
-from typing import List, Any, Dict
-from dotenv import load_dotenv
-from tqdm import tqdm
+import os
+from typing import List, Dict, Any
 
 import pandas as pd
+import yaml
+from dotenv import load_dotenv
+from tqdm import tqdm
 from openai import OpenAI
+
 from ragas.testset.graph import KnowledgeGraph, Node, NodeType
 from ragas.testset import TestsetGenerator
 from ragas.testset.synthesizers import QueryDistribution
@@ -15,23 +19,38 @@ from ragas.embeddings import OpenAIEmbeddings
 from ragas.testset.persona import Persona
 from ragas.testset.synthesizers.single_hop.specific import SingleHopSpecificQuerySynthesizer
 
-DATA_PATHS = {
-    "guidebook": "/Users/hanjiseok/pro-nlp-finalproject-nlp-13/data/busan_rag_data.json",
-    "sports": "/Users/hanjiseok/pro-nlp-finalproject-nlp-13/data/sports_crawling.csv",
-    "stay": "/Users/hanjiseok/pro-nlp-finalproject-nlp-13/data/stay_crawling.csv"
+DEFAULT_CONFIG = {
+    "data_paths": {
+        "guidebook": "data/guidebook/busan_rag_data.json",
+        "sports": "data/crawling/sports_crawling.csv",
+        "stay": "data/crawling/stay_crawling.csv",
+    },
+    "output_path": "data/singlehop_testset.json",
+    "testset_size": 100,
 }
 
-OUTPUT_PATH = "./nobooks/Han/data/singlehop_testset.json"
+
+def load_testdata_config(path: str) -> Dict[str, Any]:
+    if not os.path.exists(path):
+        print(f"[RAG][WARN] config not found: {path}. Using defaults.")
+        return DEFAULT_CONFIG
+    with open(path, "r", encoding="utf-8") as f:
+        raw = yaml.safe_load(f) or {}
+    test_cfg = raw.get("testdata", {})
+    merged = DEFAULT_CONFIG.copy()
+    merged.update(test_cfg)
+    merged["data_paths"] = {**DEFAULT_CONFIG["data_paths"], **test_cfg.get("data_paths", {})}
+    return merged
 
 
-async def run_generator():
+async def run_generator(config: Dict[str, Any]) -> None:
     load_dotenv()
     
     openai_client = OpenAI() 
     llm = llm_factory("gpt-4o-mini", client=openai_client)
     embeddings = OpenAIEmbeddings(client=openai_client)
 
-    kg = load_data_to_kg()
+    kg = load_data_to_kg(config["data_paths"])
 
     generator = TestsetGenerator(
         llm=llm,
@@ -48,20 +67,26 @@ async def run_generator():
         prompts = await query.adapt_prompts("korean", llm=llm)
         query.set_prompts(**prompts)
         
-    testset = generator.generate(testset_size=100, query_distribution=query_dist)
+    testset = generator.generate(
+        testset_size=config["testset_size"],
+        query_distribution=query_dist,
+    )
   
     df = testset.to_pandas()
-    df.to_json(OUTPUT_PATH, orient="records", force_ascii=False, indent=4)
-    print(f"테스트셋이 {OUTPUT_PATH}으로 저장되었습니다!")
+    output_path = config["output_path"]
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    df.to_json(output_path, orient="records", force_ascii=False, indent=4)
+    print(f"테스트셋이 {output_path}으로 저장되었습니다!")
 
 
-
-def load_data_to_kg() -> KnowledgeGraph:
+def load_data_to_kg(data_paths: Dict[str, str]) -> KnowledgeGraph:
     kg = KnowledgeGraph()
 
-    guide_df = pd.read_json(DATA_PATHS["guidebook"])
-    sports_df = pd.read_csv(DATA_PATHS["sports"])
-    stay_df = pd.read_csv(DATA_PATHS["stay"])
+    guide_df = pd.read_json(data_paths["guidebook"])
+    sports_df = pd.read_csv(data_paths["sports"])
+    stay_df = pd.read_csv(data_paths["stay"])
 
     df = pd.concat([guide_df, sports_df, stay_df], ignore_index=True)
 
@@ -86,9 +111,10 @@ def load_data_to_kg() -> KnowledgeGraph:
             )
             kg.nodes.append(node)
 
-    print(f"✅ 총 {len(kg.nodes)}개의 노드가 통합 로직으로 생성되었습니다.")
+    print(f"총 {len(kg.nodes)}개의 노드가 통합 로직으로 생성되었습니다.")
 
     return kg
+
 
 def get_personas() -> List[Persona]:
     return [
@@ -106,5 +132,15 @@ def get_personas() -> List[Persona]:
         )
     ]
 
+
 if __name__ == "__main__":
-    asyncio.run(run_generator())
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/rag_metric.yaml",
+        help="e.g. config/rag_metric.yaml",
+    )
+    args = parser.parse_args()
+    cfg = load_testdata_config(args.config)
+    asyncio.run(run_generator(cfg))

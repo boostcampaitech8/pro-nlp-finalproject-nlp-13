@@ -1,16 +1,31 @@
-import pandas as pd
+from __future__ import annotations
+
 import os
 import re
-from langchain_core.documents import Document
 import uuid
 
-TARGET_COLUMNS = [
-        '장소명', '구분', '설명', '메뉴', '카테고리',
-        '한줄설명', '리뷰', '리뷰 개수', '평점', '태그',
-        '가격', '영업시간', '주소', '연락처', '출처'
-        ]
-    
-def __load__(file_paths: list[str]) -> pd.DataFrame:
+import pandas as pd
+from langchain_core.documents import Document
+
+TARGET_COLUMNS: tuple[str, ...] = (
+    "장소명",
+    "구분",
+    "설명",
+    "메뉴",
+    "카테고리",
+    "한줄설명",
+    "리뷰",
+    "리뷰 개수",
+    "평점",
+    "태그",
+    "가격",
+    "영업시간",
+    "주소",
+    "연락처",
+    "출처",
+)
+
+def _load_dataframe(file_paths: list[str]) -> pd.DataFrame:
     df_list = []
     print(f"[DATA-LOADER] 총 {len(file_paths)} 개의 파일 로드를 시작합니다.")
     for path in file_paths:
@@ -35,8 +50,9 @@ def __load__(file_paths: list[str]) -> pd.DataFrame:
     raw_data = pd.concat(df_list, ignore_index=True)
     print(f"[DATA-LOADER] total rows: {len(raw_data)}")
     return raw_data
-    
-def __preprocess__(text: str) -> str:
+
+
+def _clean_text(text: object) -> str:
     if not isinstance(text, str):
         text = str(text)
     text = re.sub(r'(\\n|\r|\t|\n)', ' ', text)
@@ -44,8 +60,9 @@ def __preprocess__(text: str) -> str:
     text = re.sub(r'[^가-힣a-zA-Z0-9\s.,!?]', '', text)
     return text.strip()
     
+
 def make_docs(file_paths: list[str]) -> list[Document]:
-    raw_data = __load__(file_paths)
+    raw_data = _load_dataframe(file_paths)
     documents = []
     for _, row in raw_data.iterrows():
         
@@ -59,7 +76,7 @@ def make_docs(file_paths: list[str]) -> list[Document]:
             if isinstance(val, (list, dict)) and len(val) == 0:
                 continue
             # 전처리
-            clean_val = __preprocess__(val)
+            clean_val = _clean_text(val)
             if clean_val == "":
                 continue
 
@@ -78,6 +95,5 @@ def make_docs(file_paths: list[str]) -> list[Document]:
                 }
             )
         documents.append(doc)
-        
+
     return documents
-    
