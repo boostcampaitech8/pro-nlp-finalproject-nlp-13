@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import time
 
-from states import State, RouterDecision
+import asyncio
+
 from typing import List
 from openai import OpenAI
 from langchain_core.messages import SystemMessage, RemoveMessage, HumanMessage
@@ -12,6 +13,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from dotenv import load_dotenv
 
+from src.graph.states import State, RouterDecision
 from src.rag.rag import Rag, RagConfig
 from src.rag.hybrid_retriever import HybridRetriever, RetrieverConfig
 
@@ -89,16 +91,24 @@ Output:
 """
 
 CHATBOT_PROMPT = """
-당신은 친절한 여행 가이드입니다.
-사용자의 질문에 대해 아래 [정보]를 바탕으로 답변하세요.
-정보가 없으면 답변하되, 진실된 정보만 답변하세요. 만들어낸 정보는 답변하지 않습니다.
-출력은 무조건 줄글 형식으로 줍니다. json 이나 마크다운 형식으로 절대 주지 마십시오.
-현재 질문은 다음과 같습니다: {query}
+[사용자 질문]: {query}
 
 [참고 문서]\n{context_text}\n
 [인터넷 검색 결과]\n{web_text}\n
 [날씨]\n{weather_text}
 """
+
+# CHATBOT_PROMPT = """
+# 당신은 친절한 여행 가이드입니다.
+# 사용자의 질문에 대해 아래 [정보]를 바탕으로 답변하세요.
+# 정보가 없으면 답변하되, 진실된 정보만 답변하세요. 만들어낸 정보는 답변하지 않습니다.
+# 출력은 무조건 줄글 형식으로 줍니다. json 이나 마크다운 형식으로 절대 주지 마십시오.
+# 현재 질문은 다음과 같습니다: {query}
+
+# [참고 문서]\n{context_text}\n
+# [인터넷 검색 결과]\n{web_text}\n
+# [날씨]\n{weather_text}
+# """
 
 SUMMARIZE_PROMPT = """
 사용자 질문: {query}
@@ -116,25 +126,29 @@ web 서치 결과:
 
 class LangGraph:
     def __init__(self):
-        llm = init_chat_model(
-            "gpt-4o-mini",
-            # model_provider="upstage",
-            temperature=0,
-        )
-
-        self.chatbot = OpenAI(
-            base_url="http://localhost:8080/v1", # 3. 설정하신 포트 8080 확인
-            api_key="none",                # 로컬은 아무 값이나 입력
+        # self.chatbot = init_chat_model(
+        #     "solar-pro2",
+        #     model_provider="upstage",
+        #     temperature=0.7,
+        # )
+        self.chatbot = init_chat_model(
+            model="dpo-final-policy",  
+            model_provider="openai",  
+            api_key="none",                    
+            #base_url="http://localhost:8000/v1",
+            base_url="http://127.0.0.1:8080/v1",
+            temperature=0.1,
+            max_tokens=2048
         )
         
-        summerized_llm = init_chat_model(
+        llm = init_chat_model(
             "solar-mini",
             model_provider="upstage",
             temperature=0,
         )
 
-        BM25_PATH = "db/bm25"
-        DB_PATH = "db/chroma_db"
+        BM25_PATH = "/data/ephemeral/han-finalproject-nlp-13/db/bm25"
+        DB_PATH = "/data/ephemeral/han-finalproject-nlp-13/db/chroma_db"
 
         ragconfig = RagConfig(db_path=DB_PATH)
         rag = Rag(config=ragconfig)
@@ -149,10 +163,10 @@ class LangGraph:
         self.client = client
         self.retriever = retriever
         self.app = self.build_graph(checkpointer=memory)
-        self.summerized_llm = summerized_llm
+        # self.summerized_llm = summerized_llm
         
     # nodes
-    def router_node(self, state: State):
+    async def router_node(self, state: State):
         print("[Router]: 경로 탐색 중...")
         
         days = ["월", "화", "수", "목", "금", "토", "일"]
@@ -173,13 +187,11 @@ class LangGraph:
             SystemMessage(content=prompt),
             HumanMessage(content=question),
         ]
-        # todo delete it
-        print(f"[Router] {prompt}\n question")
         
         try:
                     # todo delete it
             print("[Router] model is thinking...")
-            decision = structured_llm.invoke(messages)
+            decision = await structured_llm.ainvoke(messages)
             rag_queries = decision.rag_queries
             web_queries = decision.web_queries
             weather_queries = decision.weather_queries
@@ -193,8 +205,6 @@ class LangGraph:
             direct = question
             reason = f"Router fallback due to error: {type(e).__name__}"
             
-                # todo delete it
-        print(f"""[Router] Router analyzed the question. The result:\n[Rag]\n{rag_queries}\n[Web]\n{web_queries}\n[Weather]\n{weather_queries}\n[Direct]\n{direct}""")
 
         return {
             "rag_queries": rag_queries,
@@ -205,7 +215,7 @@ class LangGraph:
             }
     
     # validation
-    def validate_node(self, state: State):
+    async def validate_node(self, state: State):
         print(f"[Validate] 지금까지 모은 정보를 검증합니다...")
         retried_count = state.get("retried_count", 0)
         if retried_count > 1: 
@@ -228,12 +238,9 @@ class LangGraph:
             SystemMessage(content=VALIDATION_SYSTEM_PROMPT),
             HumanMessage(content=user_prompt),
         ]
-        # todo delete it 
-        print(f"[Validate] the processing..: \n {VALIDATION_SYSTEM_PROMPT}")
-        print(f"[Validate] the processing..: \n {user_prompt}")
-        print("--------------------------------------------")        
+   
         try:
-            decision = structured_llm.invoke(messages)
+            decision = await structured_llm.ainvoke(messages)
             rag_queries = decision.rag_queries
             web_queries = decision.web_queries
             weather_queries = decision.weather_queries
@@ -242,9 +249,7 @@ class LangGraph:
             rag_queries = None
             web_queries = None
             weather_queries = None
-            
-        # todo delete it
-        print(f"""[Validator] Validator make another query. The result:\n[Rag]\n{rag_queries}\n[Web]\n{web_queries}\n[Weather]\n{weather_queries}""")
+
             
         if not rag_queries and not web_queries and not weather_queries:
             retried_count = 0
@@ -258,7 +263,7 @@ class LangGraph:
             }
 
     # RAG Retrieve Node
-    def rag_node(self, state: State):
+    async def rag_node(self, state: State):
         print("[RAG]: 내부 문서 검색 중...")
 
         queries = (
@@ -267,41 +272,42 @@ class LangGraph:
             or [state["messages"][-1].content]
         )
         
-        rag_results = []
         builded_documents = state.get("documents", [])
+        existing_ids = {
+            d.get("metadata", {}).get("id") 
+            for d in builded_documents 
+            if d.get("metadata", {}).get("id")
+        }
+
+        # ★ 비동기 병렬 검색
+        async def retrieve_query(query):
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, self.retriever.retrieve, query)
         
-        existing_ids = set()
-
-        for d in builded_documents:
-            meta = d.get("metadata", {})
-            doc_id = meta.get("id")
-            if doc_id:
-                existing_ids.add(doc_id)
-
-        for query in queries:
-            docs = self.retriever.retrieve(query)
-            print(f"docs: {docs}")
+        tasks = [retrieve_query(q) for q in queries]
+        all_docs = await asyncio.gather(*tasks)
+        
+        # 결과 병합 및 중복 제거
+        rag_results = []
+        for docs in all_docs:
             for doc in docs:
-                text = getattr(doc, "page_content", str(doc))
-                metadata = getattr(doc, "metadata", {})
-                doc_id = metadata.get("id")
-                documents = [
-                    {
-                        "text": text,
-                        "metadata": metadata,
-                        "doc_id": doc_id
-                    }
-                ]
-                
-                if doc_id in existing_ids:
+                doc_id = getattr(doc, "metadata", {}).get("id")
+                if doc_id and doc_id in existing_ids:
                     continue
+                    
+                rag_results.append({
+                    "text": getattr(doc, "page_content", str(doc)),
+                    "metadata": getattr(doc, "metadata", {}),
+                    "doc_id": doc_id
+                })
                 
-                rag_results.extend(documents)
+                if doc_id:
+                    existing_ids.add(doc_id)
 
         return {"documents": rag_results, "route": "rag"}
 
     # WebSearch Node
-    def web_search_node(self, state: State):
+    async def web_search_node(self, state: State):
         print("[Web]: 웹 검색 중...")
 
         queries = (
@@ -310,15 +316,22 @@ class LangGraph:
             or [state["messages"][-1].content]
         )
         
-        web_results = []
-        for query in queries:
-            results = self.client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=query,)
-            web_results.append(results.text)
-            # time.sleep(4) # unlock it for debug by yhkim todo
+        async def search_query(query):
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                None,
+                lambda: self.client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=query,
+                )
+            )
+            return result.text
+        
+        tasks = [search_query(q) for q in queries]
+        web_results = await asyncio.gather(*tasks)
 
-        return {"web_results": web_results}
+        return {"web_results": list(web_results)}
+        
     
     # weather node
     def weather_node(self, state: State):
@@ -328,8 +341,6 @@ class LangGraph:
         for day in days:
             if isinstance(day, int):
                 result = forecast_tool(city="부산", days=day)
-                # todo delete it
-                print(f"[Weather] the weather is. .. {day} and {result}")
                 weather_results.append(result)
             else:
                                 # todo delete it
@@ -339,7 +350,7 @@ class LangGraph:
         return {"weather_results": weather_results}
 
     # Answer Node
-    def chatbot_node(self, state: State):
+    async def chatbot_node(self, state: State):
         print("[Chatbot]: 최종 답변 생성 중...")
         
         messages = state["messages"]
@@ -361,76 +372,72 @@ class LangGraph:
             web_text=web_text,
             weather_text=weather_text
         )
-        prompt_messages = [SystemMessage(content=prompt)] + messages
+        prompt_messages = [SystemMessage("당신은 사용자의 친한 친구이며, 카카오톡 또는 SNS 메신저에서 대화하듯 답변하는 역할입니다."), HumanMessage(content=prompt)]
                         # todo delete it
 
-        print(f"[CHATBOT] 정리하는 prompt: {prompt}")
-        # response = self.llm.invoke(prompt_messages)
-        completion = self.chatbot.chat.completions.create(
-            model="dpo-final-policy",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                    ],
-                },
-            ],
-        )
-        print(f"completion: {completion.choices[0].message.content}")
-        # print(f"completion.choices[0].message: {completion.choices[0].message.content}")
-        # return {
-        #     "final_answer": response.content,
-        #     "messages": [response],
-        # }
-        from langchain_core.messages import AIMessage
+        # print(f"[CHATBOT] 정리하는 prompt: {prompt}")
+        response = await self.chatbot.ainvoke(prompt_messages)
+        # completion = self.chatbot.chat.completions.create(
+        #     model="dpo-final-policy",
+        #     messages=[
+        #         {
+        #             "role": "user",
+        #             "content": [
+        #                 {"type": "text", "text": prompt},
+        #             ],
+        #         },
+        #     ],
+        # )
+        # print(f"completion: {completion.choices[0].message.content}")
         return {
-            "final_answer": completion.choices[0].message.content,
-            "messages": [AIMessage(content=completion.choices[0].message.content)],
+            "final_answer": response.content,
+            "messages": [response],
         }
+        # from langchain_core.messages import AIMessage
+        # return {
+        #     "final_answer": completion.choices[0].message.content,
+        #     "messages": [AIMessage(content=completion.choices[0].message.content)],
+        # }
 
-    def summarize_node(self, state: State):
-        messages = state["messages"]
+    # def summarize_node(self, state: State):
+    #     messages = state["messages"]
         
-        query = state["messages"][-1].content
+    #     query = state["messages"][-1].content
         
-        docs = state.get("documents", [])
-        context_text = "\n\n".join([d["text"] for d in docs])
+    #     docs = state.get("documents", [])
+    #     context_text = "\n\n".join([d["text"] for d in docs])
         
-        webs = state.get("web_results", [])
-        web_text = "\n".join(webs)
+    #     webs = state.get("web_results", [])
+    #     web_text = "\n".join(webs)
         
-        weathers = state.get("weather_results", [])
-        weather_text = "\n".join(weathers)
+    #     weathers = state.get("weather_results", [])
+    #     weather_text = "\n".join(weathers)
         
-        prompt = SUMMARIZE_PROMPT.format(
-            query=query,
-            context_text=context_text,
-            web_text=web_text,
-            weather_text=weather_text
-        )
+    #     prompt = SUMMARIZE_PROMPT.format(
+    #         query=query,
+    #         context_text=context_text,
+    #         web_text=web_text,
+    #         weather_text=weather_text
+    #     )
         
-        response = self.summerized_llm.invoke(prompt)
-        new_summary = response.content
-        delete_messages = []
-        summary_message = SystemMessage(content=new_summary)
-        
-        print(f"[SUMMARIZE] message count: {len(messages)} make summarize: whole prompt: {prompt}")
-        print(f"[SUMMARIZE] And answer: {new_summary}")
+    #     response = self.summerized_llm.invoke(prompt)
+    #     new_summary = response.content
+    #     delete_messages = []
+    #     summary_message = SystemMessage(content=new_summary)
 
-        if len(messages) > 6:
-            delete_messages = [
-                RemoveMessage(id=m.id)
-                for m in messages[:3]
-            ]
+    #     if len(messages) > 6:
+    #         delete_messages = [
+    #             RemoveMessage(id=m.id)
+    #             for m in messages[:3]
+    #         ]
             
-        return {
-                "summary": new_summary, 
-                "messages": delete_messages + [summary_message],
-                "documents": [],
-                "web_results": [],
-                "weather_results": [],
-                }
+    #     return {
+    #             "summary": new_summary, 
+    #             "messages": delete_messages + [summary_message],
+    #             "documents": [],
+    #             "web_results": [],
+    #             "weather_results": [],
+    #             }
             
     # routing
     def route_nodes(self, state: State) -> List[str]:
@@ -459,7 +466,7 @@ class LangGraph:
         workflow.add_node("weather", self.weather_node)
         workflow.add_node("validator", self.validate_node)
         workflow.add_node("chatbot", self.chatbot_node)
-        workflow.add_node("summarize", self.summarize_node)
+
 
         workflow.add_edge(START, "router")
 
@@ -479,14 +486,13 @@ class LangGraph:
             intermediates
         )
         
-        workflow.add_edge("chatbot", "summarize")
-        workflow.add_edge("summarize", END)
+        workflow.add_edge("chatbot", END)
 
         return workflow.compile(checkpointer=checkpointer)
     
-    def run(self, message: str, thread_id: str):
+    async def run(self, message: str, thread_id: str):
         config = {"configurable": {"thread_id": thread_id}}
         inputs = {"messages": [HumanMessage(content=message)]}
         
-        result = self.app.invoke(inputs, config=config)
+        result = await self.app.ainvoke(inputs, config=config)
         return result.get("final_answer", "답변을 생성하지 못했습니다.")
