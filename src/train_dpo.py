@@ -49,7 +49,8 @@ def main(
 
     print("===== DPO 데이터셋 로딩 =====")
     train_dataset, eval_dataset = load_dpo_dataset(
-        dpo_data_cfg.train_path
+        dpo_data_cfg.train_path,
+        tokenizer
     )
 
 
