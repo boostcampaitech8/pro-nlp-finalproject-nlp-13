@@ -14,19 +14,19 @@ model_load:
 
 lora:
   enabled: true
-  r: 8
-  alpha: 16
-  dropout: 0.05
+  r: 4
+  alpha: 8
+  dropout: 0.1
   target_modules: "all-linear"
   bias: "none"
   task_type: "CAUSAL_LM"
   modules_to_save: null
 
 train:
-  output_dir: "./outputs/sft/qwen3_4b_v1"
+  output_dir: "./outputs/sft/qwen3_4b_new_v1"
 
   num_train_epochs: 1.0
-  learning_rate: 2.0e-4
+  learning_rate: 1.0e-4
   per_device_train_batch_size: 4
   per_device_eval_batch_size: 4
   gradient_accumulation_steps: 4
@@ -48,7 +48,7 @@ train:
   fp16: true
   bf16: false
 
-  max_seq_length: 2048
+  max_seq_length: 1024
   gradient_checkpointing: true
   packing: false
   report_to: "wandb"
@@ -60,4 +60,4 @@ wandb:
   project: "Qwen3-persona-sft"
   name: "Qwen3-4B-Instruct-v1"
   entity: pro-nlp-final-13
-  tags: ["sft", "Qwen3-4B", "sns-style"]
+  tags: ["sft", "Qwen3-4B-Instruct", "sns-style-mixed"]
