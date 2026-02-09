@@ -1,0 +1,1 @@
+python -m src.dpo.train_dpo --config a
