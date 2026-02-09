@@ -5,7 +5,7 @@ from transformers import AutoModelForCausalLM
 from peft import PeftModel, prepare_model_for_kbit_training
 from trl import DPOConfig, DPOTrainer
 
-from src.training.model_loader import ModelConfig
+from src.training.model_loader import ModelConfig, _get_bnb_config
 
 @dataclass(frozen=True)
 class DPOTrainerConfig:
@@ -57,16 +57,22 @@ def load_model_with_two_adapters(
                 f"SFT adapter가 {sft_adapter_path}에 존재하지 않습니다.\n"
                 "SFT 학습을 먼저하거나, config YAML 파일 경로를 확인하세요."
             )
+    
+    bnb_config = _get_bnb_config(model_cfg)
+
     print(f"\n ===== DPF Models 로딩 =====") 
     print(f"\n  1. Base Model 로딩")
     base_model = AutoModelForCausalLM.from_pretrained(
         model_cfg.model_name_or_path,
+        quantization_config=bnb_config,
         device_map=model_cfg.device_map,
         trust_remote_code=model_cfg.trust_remote_code,
         use_cache=False,
     )
+    base_model = prepare_model_for_kbit_training(base_model)
 
-    print("\n   2. SFT 모델 로딩 : {sft_adapter_path}")
+
+    print(f"\n   2. SFT 모델 로딩 : {sft_adapter_path}")
     model = PeftModel.from_pretrained(
         base_model,
         sft_adapter_path,
@@ -74,7 +80,7 @@ def load_model_with_two_adapters(
         adapter_name=train_adapter_name,
     )
 
-    print("\n   3. Reference 모델 로딩 : {sft_adapter_path}")
+    print(f"\n   3. Reference 모델 로딩 : {sft_adapter_path}")
     model.load_adapter(
         sft_adapter_path,
         is_trainable=False,
