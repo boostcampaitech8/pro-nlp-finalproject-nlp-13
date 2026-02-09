@@ -22,7 +22,7 @@ from distilabel.steps import (
 )
 from distilabel.steps.tasks import TextGeneration 
 
-from src.data.custom_distilabel import SNSToneFeedback, FilterNoneRatings
+from src.dpo.data.custom_distilabel import SNSToneFeedback, FilterNoneRatings
 from sklearn.model_selection import train_test_split
 
 warnings.filterwarnings('ignore')
