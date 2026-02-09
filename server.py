@@ -10,7 +10,7 @@ from dotenv import load_dotenv, find_dotenv
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from src.graph.graph import LangGraph
+    from src.AGENT.graph import LangGraph
 except ImportError as e:
     print(f"Import Error: {e}")
     print("src 폴더가 server.py와 같은 위치에 있는지 확인해주세요.")

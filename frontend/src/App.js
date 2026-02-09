@@ -37,7 +37,7 @@ function App() {
   }, []);
 
   const handleLogin = () => {
-    if (inputId === "admin" && inputPw === "boostcamp") {
+    if (inputId === "boostcamp" && inputPw === "boostcamp") {
       setLoggedIn(true);
       setUsername(inputId);
       if (window.innerWidth <= 768) setIsSidebarOpen(false);

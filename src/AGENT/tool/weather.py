@@ -1,11 +1,14 @@
 import os
+import logging
 from datetime import datetime, timedelta
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
-
 WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)  
 
 def get_coordinates(city: str) -> dict:
     """도시명으로 좌표 조회"""
@@ -62,12 +65,16 @@ def forecast_tool(city: str, days: int = 1) -> str:
 
     coord = data["coord"]
     forecasts = data["forecasts"]
+    try: 
+        if days > 365:
+            target_date_obj = datetime.strptime(str(days), "%Y%m%d")
+            target_date = target_date_obj.strftime("%Y-%m-%d")
+        else:
+            target_date = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
+    except Exception as e:
+        logger.warning(f"[WEATHER] the days is not suitable for data-format: {days}")
+        return {"error": f"geo API 오류: {e}."}
     
-    if days > 365:
-        target_date_obj = datetime.strptime(str(days), "%Y%m%d")
-        target_date = target_date_obj.strftime("%Y-%m-%d")
-    else:
-        target_date = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
     filtered = [f for f in forecasts if f["일시"].startswith(target_date)]
 
     if not filtered:

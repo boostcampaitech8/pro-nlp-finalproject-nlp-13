@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import List, Any, Dict
+import logging
 
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -13,48 +14,42 @@ from langgraph.checkpoint.memory import MemorySaver
 from dotenv import load_dotenv
 from google import genai
 
-from states import State, RouterDecision
-
 from src.RAG.rag import Rag, RagConfig
 from src.RAG.hybrid_retriever import HybridRetriever, RetrieverConfig
 
 from src.AGENT.tool.weather import forecast_tool
 from src.AGENT.prompt.prompt import Router, ChatBot, Summarizer, Validator
-
+from src.AGENT.states import State, RouterDecision
 
 load_dotenv()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)  
+
 class LangGraph:
     DAYS = ["월", "화", "수", "목", "금", "토", "일"]
     ERROR_RESPONSE = "ㅋㅋㅋ 미안. 다시 한번 말해줄래?"
-    def __init__(self):
+    
+    def __init__(self):    
+        chatbot = init_chat_model(
+            model="dpo-final-policy",
+            model_provider="openai",
+            api_key="none",
+            base_url="http://127.0.0.1:8080/v1",
+            temperature=0,
+            max_tokens=2048)
+        
         llm = init_chat_model(
             "gpt-4o-mini",
-            # model_provider="upstage",
             temperature=0,
         )
-        chatbot = init_chat_model(
-            "gpt-4o-mini",
-            # model_provider="upstage",
-            temperature=0,
-        )
-        
-        # chatbot = init_chat_model(
-        #     model="dpo-final-policy",
-        #     model_provider="openai",
-        #     api_key="none",
-        #     #base_url="http://localhost:8000/v1",
-        #     base_url="http://127.0.0.1:8080/v1",
-        #     temperature=0.1,
-        #     max_tokens=2048)
-        
         summerized_llm = init_chat_model(
             "solar-mini",
             model_provider="upstage",
             temperature=0,
         )
 
-        BM25_PATH = "../results/db/bm25.pkl"
-        DB_PATH = "../results/db/chroma_db"
+        BM25_PATH = "src/results/db/bm25.pkl"
+        DB_PATH = "src/results/db/chroma_db"
 
         ragconfig = RagConfig(db_path=DB_PATH)
         rag = Rag(config=ragconfig)
@@ -65,7 +60,6 @@ class LangGraph:
         memory = MemorySaver()
         client = genai.Client()
 
-        self.llm = llm
         self.chatbot = chatbot
         self.structured_llm = llm.with_structured_output(RouterDecision)
         self.summerized_llm = summerized_llm
@@ -75,10 +69,11 @@ class LangGraph:
         
     # nodes
     def _router_node(self, state: State) -> Dict[str, Any]:
-        print("[Router]: 경로 탐색 중...")        
+        logger.info("[ROUTER] Router try to find the suitable agent for task...")        
         now = datetime.now()
         day_of_week = self.DAYS[now.weekday()]
         current_time = f"{now.strftime('%Y년 %m월 %d일')} {day_of_week}요일"
+        # summary = state.get("summary", "")
         question = state["messages"][-1].content
         
         prompt = ChatPromptTemplate.from_messages([
@@ -87,22 +82,18 @@ class LangGraph:
         ])
         chain = prompt | self.structured_llm
         
-        # todo delete it for debug!!!!!!!
         formatted = prompt.format_messages(
             current_time=current_time,
             days=self.DAYS,
+            # summary=summary,
             question=question,)
-        print("[Router][PROMPT] system: ")
-        print(formatted[-2].content)
-        print("[Router][PROMPT] human: ")
-        print(formatted[-1].content)
+        logger.debug(f"[ROUTER] Router's system propmt is ::\n{formatted[-2].content}\nRouter's human propmt is ::\n{formatted[-1].content}")
         
         try:
-                    # todo delete it
-            print("[Router] model is thinking...")
             decision = chain.invoke({
                 "current_time": current_time,
-                "days": self.DAYS,    
+                "days": self.DAYS,
+                # "summary": summary,    
                 "question": question   
             })
             rag_queries = decision.rag_queries
@@ -115,11 +106,8 @@ class LangGraph:
             web_queries = None
             weather_queries = None
             direct = question
-            print(f"[Router][ERROR] router fallback due to error: {str(e)}")
-            
-                # todo delete it
-        print(f"""[Router] Router analyzed the question. The result:\n[Rag]\n{rag_queries}\n[Web]\n{web_queries}\n[Weather]\n{weather_queries}\n[Direct]\n{direct}""")
-
+            logger.warning(f"[ROUTER][ERROR] Router fallback due to error: {str(e)}")
+         
         return {
             "rag_queries": rag_queries,
             "web_queries": web_queries,
@@ -129,9 +117,10 @@ class LangGraph:
     
     # validation
     def _validate_node(self, state: State) -> Dict[str, Any]:
-        print(f"[Validate] 지금까지 모은 정보를 검증합니다...")
+        logger.info(f"[VALIDATOR] Verify the information collected so far...")
         retried_count = state.get("retried_count", 0)
         question = state["messages"][-1].content
+        # summary = state.get("summary", "")
         documents = state.get("documents", []),
         web_results = state.get("web_results", []),
         weather_results = state.get("weather_results", [])
@@ -150,18 +139,16 @@ class LangGraph:
         ])
         chain = prompt | self.structured_llm
         
-        # todo delete it for debug!!!!!!!
         formatted = prompt.format_messages(
             question=question,
+            # summary=summary,
             documents=documents,
             web_results=web_results,
             weather_results=weather_results,)
-        print("[Validator][PROMPT] system: ")
-        print(formatted[-2].content)
-        print("[Validator][PROMPT] human: ")
-        print(formatted[-1].content)
+        logger.debug(f"[VALIDATOR] Validator's system propmt is ::\n{formatted[-2].content}\Validator's human propmt is ::\n{formatted[-1].content}")
         try:
             decision = chain.invoke({
+                # "summary":summary,
                 "question":question,
                 "documents":documents,
                 "web_results":web_results,
@@ -172,13 +159,10 @@ class LangGraph:
             weather_queries = decision.weather_queries
 
         except Exception as e:
-            print(f"[Validator][ERROR] validator fallback due to error: {str(e)}")
+            logger.warning(f"[VALIDATOR][ERROR] Validator fallback due to error: {str(e)}")
             rag_queries = None
             web_queries = None
             weather_queries = None
-            
-        # todo delete it
-        print(f"""[Validator] Validator make another query. The result:\n[Rag]\n{rag_queries}\n[Web]\n{web_queries}\n[Weather]\n{weather_queries}""")
             
         if not rag_queries and not web_queries and not weather_queries:
             retried_count = 0
@@ -193,8 +177,7 @@ class LangGraph:
 
     # RAG Retrieve Node
     def _rag_node(self, state: State) -> Dict[str, Any]:
-        print("[RAG]: 내부 문서 검색 중...")
-
+        logger.info("[RAG] Search for documents...")
         queries = (state.get("rag_queries") or [state["messages"][-1].content])
         builded_documents = state.get("documents", [])
 
@@ -228,8 +211,7 @@ class LangGraph:
 
     # WebSearch Node
     def _web_search_node(self, state: State) -> Dict[str, Any]:
-        print("[Web]: 웹 검색 중...")
-
+        logger.info("[WEB-SEARCH] Search the web ...")
         queries = (state.get("web_queries") or [state["messages"][-1].content])
         web_results = []
         
@@ -243,32 +225,29 @@ class LangGraph:
     
     # weather node
     def _weather_node(self, state: State) -> Dict[str, Any]:
+        logger.info(f"[WEATHER] Search for the weather...")
         days = state.get("weather_queries")
-        print(f"[Weather]: 날씨 검색 중..")
         weather_results = []
         for day in days:
             if isinstance(day, int):
                 result = forecast_tool(city="부산", days=day)
-                # todo delete it
-                print(f"[Weather] the weather is. .. {day} and {result}")
                 weather_results.append(result)
             else:
-                # todo delete it
-                print(f"[Weather] the model's answer is not in int...")
+                logger.warning(f"[WEATHER][WARNING] The model's query for weather is not in number format. models's query: {day}")
                 continue
             
         return {"weather_results": weather_results}
 
     # Answer Node
     def _chatbot_node(self, state: State) -> Dict[str, Any]:
-        print("[Chatbot]: 최종 답변 생성 중...")
+        logger.info("[CHATBOT] Generate final answer...")
         
         now = datetime.now()
         day_of_week = self.DAYS[now.weekday()]
         current_time = f"{now.strftime('%Y년 %m월 %d일')} {day_of_week}요일"
         
         question = state["messages"][-1].content
-        summary = state.get("summary", "")
+        # summary = state.get("summary", "")
         
         docs = state.get("documents", [])
         context_text = "\n\n".join([d["text"] for d in docs])
@@ -283,20 +262,17 @@ class LangGraph:
             ("system", ChatBot.system), 
             ("human", ChatBot.user),
         ])
-        chain = prompt | self.llm
+        chain = prompt | self.chatbot
         
-        # todo delete it for debug!!!!!!!
         formatted = prompt.format_messages(
             current_time=current_time,
             question=question,
             context_text=context_text,
             web_text=web_text,
             weather_text=weather_text,
-            summary=summary,)
-        print("[Chatbot][PROMPT] system: ")
-        print(formatted[-2].content)
-        print("[Chatbot][PROMPT] human: ")
-        print(formatted[-1].content)
+            # summary=summary,
+            )
+        logger.debug(f"[CHATBOT] Chatbot's system propmt is ::\n{formatted[-2].content}\Chatbot's human propmt is ::\n{formatted[-1].content}")
         
         final_answer = ""
         message = []
@@ -308,13 +284,13 @@ class LangGraph:
                 "context_text":context_text,
                 "web_text":web_text,
                 "weather_text":weather_text,
-                "summary":summary,
+                # "summary":summary,
             })
             final_answer = response.content
             message.append(response)
             
         except Exception as e:
-            print(f"[Chatbot][ERROR] chatbot fallback due to error: {str(e)}")
+            logger.warning(f"[CHATBOT][ERROR] Chatbot fallback due to error: {str(e)}")
             final_answer = self.ERROR_RESPONSE
         
         return {
@@ -323,8 +299,7 @@ class LangGraph:
         }
 
     def _summarize_node(self, state: State) -> Dict[str, Any]:
-        print("[Summarize]: 대화 요약 중...")
-        print("[Summarize]: 메시지 확인...\n", state["messages"])
+        logger.info("[SUMMARIZER] Summarize the conversation...")
 
         question = state["messages"][-2].content
         bot_response = state["messages"][-1].content
@@ -333,17 +308,13 @@ class LangGraph:
             ("system", Summarizer.system), 
             ("human", Summarizer.user),
         ])
-        chain = prompt | self.llm
+        chain = prompt | self.summerized_llm
         new_summary = ""
         
-        # todo delete it for debug!!!!!!!
         formatted = prompt.format_messages(
             question=question,
             bot_response=bot_response)
-        print("[Summarize][PROMPT] system: ")
-        print(formatted[-2].content)
-        print("[Summarize][PROMPT] human: ")
-        print(formatted[-1].content)
+        logger.debug(f"[SUMMARIZER] Summarizer's system propmt is ::\n{formatted[-2].content}\Summarizer's human propmt is ::\n{formatted[-1].content}")
         
         try: 
             response = chain.invoke({
@@ -353,10 +324,8 @@ class LangGraph:
             new_summary = response.content
         
         except Exception as e:
-            print(f"[Summarize][ERROR] Summarize fallback due to error: {str(e)}")
+            logger.warning(f"[SUMMARIZER][ERROR] Summarizer fallback due to error: {str(e)}")
 
-        print(f"[Summarize] And answer: {new_summary}")
-            
         return {
                 "summary": new_summary, 
                 "documents": [],
