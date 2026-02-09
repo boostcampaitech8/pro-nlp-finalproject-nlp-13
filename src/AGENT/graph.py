@@ -73,7 +73,6 @@ class LangGraph:
         now = datetime.now()
         day_of_week = self.DAYS[now.weekday()]
         current_time = f"{now.strftime('%Y년 %m월 %d일')} {day_of_week}요일"
-        # summary = state.get("summary", "")
         question = state["messages"][-1].content
         
         prompt = ChatPromptTemplate.from_messages([
@@ -85,7 +84,6 @@ class LangGraph:
         formatted = prompt.format_messages(
             current_time=current_time,
             days=self.DAYS,
-            # summary=summary,
             question=question,)
         logger.debug(f"[ROUTER] Router's system propmt is ::\n{formatted[-2].content}\nRouter's human propmt is ::\n{formatted[-1].content}")
         
@@ -93,7 +91,6 @@ class LangGraph:
             decision = chain.invoke({
                 "current_time": current_time,
                 "days": self.DAYS,
-                # "summary": summary,    
                 "question": question   
             })
             rag_queries = decision.rag_queries
@@ -120,7 +117,6 @@ class LangGraph:
         logger.info(f"[VALIDATOR] Verify the information collected so far...")
         retried_count = state.get("retried_count", 0)
         question = state["messages"][-1].content
-        # summary = state.get("summary", "")
         documents = state.get("documents", []),
         web_results = state.get("web_results", []),
         weather_results = state.get("weather_results", [])
@@ -141,14 +137,12 @@ class LangGraph:
         
         formatted = prompt.format_messages(
             question=question,
-            # summary=summary,
             documents=documents,
             web_results=web_results,
             weather_results=weather_results,)
         logger.debug(f"[VALIDATOR] Validator's system propmt is ::\n{formatted[-2].content}\Validator's human propmt is ::\n{formatted[-1].content}")
         try:
             decision = chain.invoke({
-                # "summary":summary,
                 "question":question,
                 "documents":documents,
                 "web_results":web_results,
@@ -246,9 +240,7 @@ class LangGraph:
         day_of_week = self.DAYS[now.weekday()]
         current_time = f"{now.strftime('%Y년 %m월 %d일')} {day_of_week}요일"
         
-        question = state["messages"][-1].content
-        # summary = state.get("summary", "")
-        
+        question = state["messages"][-1].content        
         docs = state.get("documents", [])
         context_text = "\n\n".join([d["text"] for d in docs])
         
@@ -270,7 +262,6 @@ class LangGraph:
             context_text=context_text,
             web_text=web_text,
             weather_text=weather_text,
-            # summary=summary,
             )
         logger.debug(f"[CHATBOT] Chatbot's system propmt is ::\n{formatted[-2].content}\Chatbot's human propmt is ::\n{formatted[-1].content}")
         
@@ -284,7 +275,6 @@ class LangGraph:
                 "context_text":context_text,
                 "web_text":web_text,
                 "weather_text":weather_text,
-                # "summary":summary,
             })
             final_answer = response.content
             message.append(response)
@@ -375,8 +365,7 @@ class LangGraph:
             intermediates
         )
         
-        workflow.add_edge("chatbot", "summarize")
-        workflow.add_edge("summarize", END)
+        workflow.add_edge("chatbot", END)
 
         return workflow.compile(checkpointer=checkpointer)
     
