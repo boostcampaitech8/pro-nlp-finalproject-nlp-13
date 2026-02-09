@@ -22,8 +22,14 @@ from src.AGENT.prompt.prompt import Router, ChatBot, Summarizer, Validator
 from src.AGENT.states import State, RouterDecision
 
 load_dotenv()
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(levelname)s]%(message)s",
+    datefmt="%H:%M:%S",
+    force=True
+)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)  
+logger.setLevel(logging.INFO)  
 
 class LangGraph:
     DAYS = ["월", "화", "수", "목", "금", "토", "일"]
@@ -140,7 +146,7 @@ class LangGraph:
             documents=documents,
             web_results=web_results,
             weather_results=weather_results,)
-        logger.debug(f"[VALIDATOR] Validator's system propmt is ::\n{formatted[-2].content}\Validator's human propmt is ::\n{formatted[-1].content}")
+        logger.debug(f"[VALIDATOR] Validator's system propmt is ::\n{formatted[-2].content}\nValidator's human propmt is ::\n{formatted[-1].content}")
         try:
             decision = chain.invoke({
                 "question":question,
@@ -263,7 +269,7 @@ class LangGraph:
             web_text=web_text,
             weather_text=weather_text,
             )
-        logger.debug(f"[CHATBOT] Chatbot's system propmt is ::\n{formatted[-2].content}\Chatbot's human propmt is ::\n{formatted[-1].content}")
+        logger.debug(f"[CHATBOT] Chatbot's system propmt is ::\n{formatted[-2].content}\nChatbot's human propmt is ::\n{formatted[-1].content}")
         
         final_answer = ""
         message = []
@@ -304,7 +310,7 @@ class LangGraph:
         formatted = prompt.format_messages(
             question=question,
             bot_response=bot_response)
-        logger.debug(f"[SUMMARIZER] Summarizer's system propmt is ::\n{formatted[-2].content}\Summarizer's human propmt is ::\n{formatted[-1].content}")
+        logger.debug(f"[SUMMARIZER] Summarizer's system propmt is ::\n{formatted[-2].content}\nSummarizer's human propmt is ::\n{formatted[-1].content}")
         
         try: 
             response = chain.invoke({
