@@ -14,12 +14,12 @@ from langgraph.checkpoint.memory import MemorySaver
 from dotenv import load_dotenv
 from google import genai
 
-from src.RAG.rag import Rag, RagConfig
-from src.RAG.hybrid_retriever import HybridRetriever, RetrieverConfig
+from src.rag.rag import Rag, RagConfig
+from src.rag.hybrid_retriever import HybridRetriever, RetrieverConfig
 
-from src.AGENT.tool.weather import forecast_tool
-from src.AGENT.prompt.prompt import Router, ChatBot, Summarizer, Validator
-from src.AGENT.states import State, RouterDecision
+from src.agent.tool.weather import forecast_tool
+from src.agent.prompt.prompt import Router, ChatBot, Summarizer, Validator
+from src.agent.states import State, RouterDecision
 
 load_dotenv()
 logging.basicConfig(

@@ -16,8 +16,8 @@ from ragas import experiment
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from src.RAG.rag import Rag, RagConfig
-from src.RAG.hybrid_retriever import HybridRetriever, RetrieverConfig
+from src.rag.rag import Rag, RagConfig
+from src.rag.hybrid_retriever import HybridRetriever, RetrieverConfig
 
 DEFAULT_CONFIG = {
     "testset_path": "data/singlehop_testset.json",

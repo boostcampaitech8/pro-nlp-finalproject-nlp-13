@@ -1,1 +1,1 @@
-python -m src.RAG.metric.test_rag
+python -m src.rag.metric.test_rag

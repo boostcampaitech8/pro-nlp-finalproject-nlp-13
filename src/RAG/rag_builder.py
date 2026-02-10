@@ -6,8 +6,8 @@ from typing import Any, Dict
 import yaml
 from dotenv import load_dotenv
 
-from src.RAG.data_loader import make_docs
-from src.RAG.rag import RagConfig, Rag
+from src.rag.data_loader import make_docs
+from src.rag.rag import RagConfig, Rag
 
 
 def main():

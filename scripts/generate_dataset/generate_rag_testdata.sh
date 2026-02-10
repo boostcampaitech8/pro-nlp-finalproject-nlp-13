@@ -1,1 +1,1 @@
-python -m src.RAG.metric.generate_test_data --config config/rag_metric.yaml
+python -m src.rag.metric.generate_test_data --config config/rag_metric.yaml
