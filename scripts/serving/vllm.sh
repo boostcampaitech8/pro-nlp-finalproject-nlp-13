@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 모델 경로 및 이름 설정
-MODEL_PATH="/data/ephemeral/pro-nlp-finalproject-nlp-13/outputs/merged_model/qwen_sft_merged_model_final_jang"
+MODEL_PATH="/data/ephemeral/pro-nlp-finalproject-nlp-13/outputs/merged_model/qwen_dpo_merged_model_final_jang_v1"
 MODEL_NAME="dpo-final-policy"
 TEMPLATE_PATH="${MODEL_PATH}/chat_template.jinja"
 

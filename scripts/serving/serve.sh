@@ -1,1 +1,1 @@
-python -m server
+python -m backend.server
