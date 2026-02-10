@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import './App.css';
 
-const botProfile = "/bot_profile.png";
+import botProfile from './bot_profile.png'; 
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -42,7 +42,7 @@ function App() {
       setUsername(inputId);
       if (window.innerWidth <= 768) setIsSidebarOpen(false);
     } else {
-      alert("로그인에 실패했습니다. 입력 정보를 확인해주세요.");
+      alert("로그인 실패: admin / boostcamp");
     }
   };
 
