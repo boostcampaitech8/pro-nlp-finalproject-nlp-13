@@ -110,11 +110,11 @@ frontend/
 │   ├─ reportWebVitals.js
 │   └─ setupTests.js
 │
-├─ scripts/
-│   ├─ generate_dataset
-│   ├─ rag
-│   ├─ serving
-│   └─ train
+scripts/
+├─ generate_dataset
+├─ rag
+├─ serving
+├─ train
 │
 configs/
 │   ├─ dpo_config.yaml
