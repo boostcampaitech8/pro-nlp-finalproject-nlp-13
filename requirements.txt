@@ -25,3 +25,6 @@ sentence-transformers==3.0.1
 langgraph==1.0.7
 tavily-python==0.3.5
 rank_bm25
+
+# --- 서빙 ---
+vllm==0.15.1
