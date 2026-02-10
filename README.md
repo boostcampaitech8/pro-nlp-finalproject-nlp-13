@@ -157,4 +157,4 @@ npm start
 
 ## 6. Wrap-Up Report
 
-프로젝트 전반의 시행착오와 솔루션 및 회고는 [Wrap-up report/주섬주섬주섬](https://www.notion.so/Wrap-up-report-30219faa51bc80639533da0e5f6c5242?pvs=21) 을 통해 확인할 수 있습니다.
+프로젝트 전반의 시행착오와 솔루션 및 회고는 [FinalProject_NLP_13.pdf](./assets/finalproject-nlp-13.pdf) 을 통해 확인할 수 있습니다.
