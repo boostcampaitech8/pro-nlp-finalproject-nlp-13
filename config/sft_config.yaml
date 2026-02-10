@@ -23,11 +23,11 @@ lora:
   modules_to_save: null
 
 train:
-  output_dir: "./outputs/sft/qwen3_4b_v1"
+  output_dir: "./outputs/sft/qwen3_4b_new_v1"
 
   num_train_epochs: 1.0
   learning_rate: 1.0e-4
-  per_device_train_batch_size: 8
+  per_device_train_batch_size: 4
   per_device_eval_batch_size: 4
   gradient_accumulation_steps: 4
 
@@ -48,7 +48,7 @@ train:
   fp16: true
   bf16: false
 
-  max_seq_length: 2048
+  max_seq_length: 1024
   gradient_checkpointing: true
   packing: false
   report_to: "wandb"
