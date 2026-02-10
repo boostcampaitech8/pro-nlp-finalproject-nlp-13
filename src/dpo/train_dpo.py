@@ -2,15 +2,21 @@ import yaml
 import argparse
 from pathlib import Path
 from typing import Dict, Any
+import wandb
 
 import torch
 from transformers import AutoTokenizer
 
-from src.training.model_loader import ModelConfig
-from src.training.dpo_trainer import DPOTrainerConfig, build_dpo_trainer
-from src.data.dpo_data_loader import DPODataConfig, load_dpo_dataset
-from src.utils.set_seed import set_seed
-from src.utils.wandb import wandb_init, wandb_finish
+from src.dpo.training.model_loader import ModelConfig
+from src.dpo.training.dpo_trainer import DPOTrainerConfig, build_dpo_trainer
+from src.dpo.data.dpo_data_loader import DPODataConfig, load_dpo_dataset
+from src.common.set_seed import set_seed
+from src.common.wandb import setup_wandb
+
+
+def load_yaml(path: str) -> Dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
 
 def main(
@@ -22,19 +28,9 @@ def main(
 ):
     set_seed(dpo_cfg.seed)
 
+    cfg = load_yaml('config/dpo_config.yaml')
 
-    if wandb_cfg and wandb_cfg.get("enabled", False):
-        wandb_init(
-            config={
-                "model": model_cfg.__dict__,
-                "dpo": dpo_cfg.__dict__,
-                "dpo_data": dpo_data_cfg.__dict__,
-                "sft_adapter_path": sft_adapter_path,
-            },
-            project_name=wandb_cfg.get("project_name", "DPO-training"),
-            run_name=wandb_cfg.get("run_name") or f"dpo_{Path(dpo_cfg.output_dir).name}",
-            entity=wandb_cfg.get("entity"),
-        )
+    setup_wandb(cfg)
 
 
     print("===== Tokenizer 로딩 =====")
@@ -76,7 +72,7 @@ def main(
     tokenizer.save_pretrained(str(final_model_path))
 
     if wandb_cfg and wandb_cfg.get("enabled", False):
-        wandb_finish()
+        wandb.finish()
 
     print("-" * 60)
     print("===== DPO 학습 완료 =====")

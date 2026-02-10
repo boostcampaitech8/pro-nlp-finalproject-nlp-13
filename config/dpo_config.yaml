@@ -1,30 +1,30 @@
 dpo:
-  sft_adapter_path: "outputs/sft/qwen3_4b_v1"
+  sft_adapter_path: "outputs/sft/qwen3_4b_sft_final_jang"
 
   trainer:
-    output_dir: "outputs/dpo/qwen3_4b_dpo_v6_multi_1"
+    output_dir: "outputs/dpo/qwen3_4b_dpo_final_jang_v1"
 
     num_train_epochs: 1
     per_device_train_batch_size: 2
     per_device_eval_batch_size: 1
     gradient_accumulation_steps: 4
 
-    learning_rate: 0.000001
+    learning_rate: 0.0000005
     lr_scheduler_type: "cosine"
     warmup_ratio: 0.1
 
     beta: 0.3
     label_smoothing: 0.0
-    loss_type: "sigmoid"
+    loss_type: "ipo"
 
     fp16: true
     bf16: false
 
     eval_strategy: "steps"
     save_strategy: "steps"
-    logging_steps: 100
-    eval_steps: 100
-    save_steps: 200
+    logging_steps: 50
+    eval_steps: 50
+    save_steps: 100
 
     load_best_model_at_end: true
     metric_for_best_model: "eval_rewards/accuracies"
@@ -40,7 +40,7 @@ dpo:
     seed: 42
 
   data:
-    train_path: "/data/ephemeral/pro-nlp-finalproject-nlp-13/data/persona_data/dpo_dataset/dpo_train_dataset_v6_multi.jsonl"
+    train_path: "/data/ephemeral/pro-nlp-finalproject-nlp-13/data/persona_data/dpo_dataset/dpo_train_dataset_v2.json"
     seed: 42
     csv_dir: "./data/dpo_outputs"
     margin_threshold: 0.995
@@ -58,6 +58,6 @@ model:
 wandb:
   enabled: true
   run_name: "qwen_dpo_v6_multi_1"
-  project_name: "DPO-qwen-debug-normal"
+  project: "DPO-qwen-debug-normal"
   entity: "pro-nlp-final-13"
   dir: "./wandb"
