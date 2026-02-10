@@ -1,1 +1,1 @@
-python -m src.serve
+python -m server

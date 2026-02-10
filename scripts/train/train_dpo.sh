@@ -1,1 +1,1 @@
-python -m src.dpo.train_dpo --config a
+python -m src.dpo.train_dpo --config /data/ephemeral/pro-nlp-finalproject-nlp-13/config/dpo_config.yaml

@@ -1,7 +1,7 @@
 seed: 42
 
 data:
-  path: "/data/ephemeral/pro-nlp-finalproject-nlp-13/data/persona_data/sft_dataset.csv"    # 데이터 경로
+  path: "/data/ephemeral/pro-nlp-finalproject-nlp-13/data/persona_data/sft_reqinfo_mix.csv"    # 데이터 경로
   test_size: 0.1 
   system_content: "너는 사용자의 친구처럼 편하게 대화하는 AI야. 말투는 자연스럽고 캐주얼하게, 너무 과장하지는 마. 필요할 땐 핵심을 잘 설명해주고, 사용자가 진지하면 너도 진지하게 답해. ㅋㅋ/이모지는 가끔만 써."
 
@@ -14,19 +14,19 @@ model_load:
 
 lora:
   enabled: true
-  r: 8
-  alpha: 16
-  dropout: 0.05
+  r: 4
+  alpha: 8
+  dropout: 0.1
   target_modules: "all-linear"
   bias: "none"
   task_type: "CAUSAL_LM"
   modules_to_save: null
 
 train:
-  output_dir: "./outputs/sft/qwen3_4b_v1"
+  output_dir: "./outputs/sft/qwen3_4b_new_v1"
 
   num_train_epochs: 1.0
-  learning_rate: 2.0e-4
+  learning_rate: 1.0e-4
   per_device_train_batch_size: 4
   per_device_eval_batch_size: 4
   gradient_accumulation_steps: 4
@@ -48,7 +48,7 @@ train:
   fp16: true
   bf16: false
 
-  max_seq_length: 2048
+  max_seq_length: 1024
   gradient_checkpointing: true
   packing: false
   report_to: "wandb"
@@ -58,6 +58,6 @@ train:
 wandb:
   enabled: true
   project: "Qwen3-persona-sft"
-  name: "Qwen3-4B-Instruct-v1"
+  name: "Qwen3-4B-Instruct-new-v1"
   entity: pro-nlp-final-13
-  tags: ["sft", "Qwen3-4B", "sns-style"]
+  tags: ["sft", "Qwen3-4B-Instruct", "sns-style-mixed"]

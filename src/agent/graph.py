@@ -41,7 +41,7 @@ class LangGraph:
             model_provider="openai",
             api_key="none",
             base_url="http://127.0.0.1:8080/v1",
-            temperature=0,
+            temperature=0.3,
             max_tokens=2048)
         
         llm = init_chat_model(
@@ -191,6 +191,7 @@ class LangGraph:
                 existing_ids.add(doc_id)
 
         for query in queries:
+            print(f"===== rag query : {query} =====")
             docs = self.retriever.retrieve(query)
             for doc in docs:
                 text = getattr(doc, "page_content", str(doc))
@@ -213,6 +214,7 @@ class LangGraph:
     def _web_search_node(self, state: State) -> Dict[str, Any]:
         logger.info("[WEB-SEARCH] Search the web ...")
         queries = (state.get("web_queries") or [state["messages"][-1].content])
+        print(f"===== web query : {queries} =====")
         web_results = []
         
         for query in queries:
@@ -269,7 +271,7 @@ class LangGraph:
             web_text=web_text,
             weather_text=weather_text,
             )
-        logger.debug(f"[CHATBOT] Chatbot's system propmt is ::\n{formatted[-2].content}\nChatbot's human propmt is ::\n{formatted[-1].content}")
+        logger.info(f"[CHATBOT] Chatbot's system propmt is ::\n{formatted[-2].content}\nChatbot's human propmt is ::\n{formatted[-1].content}")
         
         final_answer = ""
         message = []
