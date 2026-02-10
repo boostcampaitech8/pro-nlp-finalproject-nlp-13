@@ -36,9 +36,9 @@
 
 ## 3. 파이프라인
 
-![image.png](image.png)
+<img width="1000" alt="image" src="./assets/image.png">
 
-![image.png](image%201.png)
+<img width="1000" alt="image" src="./assets/image2.png">
 
 ## 4. 디렉토리 구조
 
