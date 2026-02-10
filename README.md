@@ -43,18 +43,17 @@
 ## 4. 디렉토리 구조
 
 ```bash
+backend/
 ├─ server.py
 │
 src/
-├─ AGENT/
-│   ├─ __init__.py
+├─ agent/
 │   ├─ graph.py
 │   ├─ states.py
 │   ├─ prompt
 │   └─ tool
 │
-├─ RAG/
-│   ├─ __init__.py
+├─ rag/
 │   ├─ data_loader.py
 │   ├─ hybrid_retriever.py
 │   ├─ rag.py
@@ -88,27 +87,11 @@ src/
 │       └─ trainer.py
 │
 frontend/
-├─ package.json
-├─ package-lock.json
-├─ public/
-│   ├─ favicon.ico
-│   ├─ index.html
-│   ├─ logo192.png
-│   ├─ logo512.png
-│   ├─ manifest.json
-│   └─ robots.txt
-│
 ├─ src/
 │   ├─ App.css
 │   ├─ App.js
-│   ├─ App.test.js
-│   ├─ background.jpg
-│   ├─ bot_profile.png
 │   ├─ index.css
-│   ├─ index.js
-│   ├─ logo.svg
-│   ├─ reportWebVitals.js
-│   └─ setupTests.js
+│   └─ index.js
 │
 scripts/
 ├─ generate_dataset
@@ -125,30 +108,26 @@ configs/
 notebooks/
 ```
 
-## 5. Train 및 Inference 실행
+## 5. 실행 방법
 
 세팅을 직접하려면 `dpo_config.yaml`, `rag.yaml`, `rag_metric.yaml`, `sft_config.yaml` 를 참고해주세요.
 
-**train**
+**기본 설정**
 
 ```bash
-# 파일 내 로직코드 실행
-python -m scripts.{폴더명} {파일명} 
-
-# 기본 사용법
-python -m scripts.train --config {CONFIG_PATH}
-
+# 벡터 DB 생성
+scripts/rag/build_rag.sh
 # 모델 SFT 학습 예시
 bash src/sft/train.py
 # 모델 DPO 학습 예시
 bash src/dpo/train_dpo.py
 ```
 
-**inference**
+**웹 실행**
 
 ```python
 # 기본 사용법
-python -m server.py
+python -m backend.server
 
 cd frontend
 npm start
