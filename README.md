@@ -16,7 +16,11 @@
 
 페르소나를 입히기 위한 대화 데이터셋과 RAG로 최신 여행 정보를 응답에 반영하기 위한 데이터셋 활용
 
+#### Train 데이터셋 (페르소나 대화 학습용)
+
 - AI Hub 한국어 SNS 멀티턴 대화 데이터셋(여행 카테고리) - 2인 대화, 약 1.3만 대화 추출
+
+#### RAG 데이터셋 (최신 여행 정보 검색용)
 - 카카오맵 크롤링
     - 최신 정보 반영을 위해 2025년 기준 최신 리뷰 데이터 3개 크롤링
     - Selenium + BeautifulSoup 기반 동적 크롤링
@@ -44,22 +48,26 @@
 
 ```bash
 backend/
-├─ server.py
+│    ├─ merge_lora_weights.py
+│    └─ server.py
 │
 src/
 ├─ agent/
 │   ├─ graph.py
 │   ├─ states.py
-│   ├─ prompt
-│   └─ tool
+│   ├─ prompt/
+│   │   ├─ prompt.py
+│   └─ tool/
+│       └─ weather.py
 │
 ├─ rag/
 │   ├─ data_loader.py
 │   ├─ hybrid_retriever.py
 │   ├─ rag.py
 │   ├─ rag_builder.py
-│   └─ metric
-│       └─ prompt.py
+│   └─ metric/
+│       ├─ generate_testdata.py
+│       └─ test_rag.py
 │
 ├─ common/
 │   ├─ set_seed.py
@@ -69,20 +77,20 @@ src/
 │   ├─ evaluate_chatbot.py
 │   ├─ generate_dpo_dataset.py
 │   ├─ train_dpo.py
-│   ├─ data
+│   ├─ data/
 │   │   ├─ custom_distilabel.py
 │   │   └─ dpo_data_loader.py
-│   └─ training
+│   └─ training/
 │       ├─ dpo_trainer.py
 │       └─ model_loader.py
 │
 ├─ sft/
-│   ├─ train.py
-│   ├─ data
+│   ├─ train_sft.py
+│   ├─ data/
 │   │   ├─ collator.py
 │   │   ├─ data_loader.py
 │   │   └─ preprocessor.py
-│   └─ training
+│   └─ training/
 │       ├─ model_loader.py
 │       └─ trainer.py
 │
@@ -94,10 +102,10 @@ frontend/
 │   └─ index.js
 │
 scripts/
-├─ generate_dataset
-├─ rag
-├─ serving
-├─ train
+├─ generate_dataset/
+├─ rag/
+├─ serving/
+├─ train/
 │
 configs/
 │   ├─ dpo_config.yaml
@@ -116,18 +124,20 @@ notebooks/
 
 ```bash
 # 벡터 DB 생성
-scripts/rag/build_rag.sh
+bash scripts/rag/build_rag.sh
+
 # 모델 SFT 학습 예시
-bash src/sft/train.py
+bash scripts/sft/train_sft.sh
+
 # 모델 DPO 학습 예시
-bash src/dpo/train_dpo.py
-```
+bash scripts/dpo/train_dpo.sh```
 
 **웹 실행**
 
-```python
+```bash
 # 기본 사용법
-python -m backend.server
+bash scripts/serving/serve_model.sh
+bash scripts/serving/serve_app.sh 
 
 cd frontend
 npm start
