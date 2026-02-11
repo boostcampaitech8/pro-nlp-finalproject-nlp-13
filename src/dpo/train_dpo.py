@@ -14,11 +14,6 @@ from src.common.set_seed import set_seed
 from src.common.wandb import setup_wandb
 
 
-def load_yaml(path: str) -> Dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
-
-
 def main(
     model_cfg: ModelConfig,
     dpo_cfg: DPOTrainerConfig,
@@ -27,10 +22,6 @@ def main(
     wandb_cfg: Dict[str, Any] = None,
 ):
     set_seed(dpo_cfg.seed)
-
-    cfg = load_yaml('config/dpo_config.yaml')
-
-    setup_wandb(cfg)
 
 
     print("===== Tokenizer 로딩 =====")
@@ -71,8 +62,6 @@ def main(
     trainer.save_model(str(final_model_path))
     tokenizer.save_pretrained(str(final_model_path))
 
-    if wandb_cfg and wandb_cfg.get("enabled", False):
-        wandb.finish()
 
     print("-" * 60)
     print("===== DPO 학습 완료 =====")
@@ -118,6 +107,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     raw_cfg = load_config(args.config)
+
+    wandb_cfg = raw_cfg.get("wandb", {})
+    if wandb_cfg.get("enabled", False):
+        setup_wandb(raw_cfg)
+
     model_cfg, dpo_cfg, dpo_data_cfg, sft_adapter_path = create_configs(raw_cfg)
 
     main(
@@ -125,5 +119,7 @@ if __name__ == "__main__":
         dpo_cfg=dpo_cfg,
         dpo_data_cfg=dpo_data_cfg,
         sft_adapter_path=sft_adapter_path,
-        wandb_cfg=raw_cfg.get("wandb")
     )
+
+    if wandb_cfg.get("enabled", False):
+        wandb.finish()
