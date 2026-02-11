@@ -47,93 +47,102 @@
 ## 4. 디렉토리 구조
 
 ```bash
-backend/
-│    ├─ merge_lora_weights.py
-│    └─ server.py
+📦 project-root
 │
-src/
-├─ agent/
-│   ├─ graph.py
-│   ├─ states.py
-│   ├─ prompt/
-│   │   ├─ prompt.py
-│   └─ tool/
-│       └─ weather.py
+├── 📁 backend                 # LoRA 병합 및 모델 서빙
+│   ├── merge_lora_weights.py
+│   └── server.py
 │
-├─ rag/
-│   ├─ data_loader.py
-│   ├─ hybrid_retriever.py
-│   ├─ rag.py
-│   ├─ rag_builder.py
-│   └─ metric/
-│       ├─ generate_testdata.py
-│       └─ test_rag.py
+├── 📁 src                     # 핵심 로직
+│   │
+│   ├── 📁 agent               # 에이전트 및 대화 흐름 관리
+│   │   ├── graph.py
+│   │   ├── states.py
+│   │   ├── 📁 prompt          # 프롬프트 정의
+│   │   │   └── prompt.py
+│   │   └── 📁 tool            # 외부 도구 연동
+│   │       └── weather.py
+│   │
+│   ├── 📁 rag                 # RAG 검색 및 평가 모듈
+│   │   ├── data_loader.py
+│   │   ├── hybrid_retriever.py
+│   │   ├── rag.py
+│   │   ├── rag_builder.py
+│   │   └── 📁 metric
+│   │       ├── generate_testdata.py
+│   │       └── test_rag.py
+│   │
+│   ├── 📁 common              # 공통 유틸리티
+│   │   ├── set_seed.py
+│   │   └── wandb.py
+│   │
+│   ├── 📁 dpo                 # DPO 학습 파이프라인
+│   │   ├── evaluate_chatbot.py
+│   │   ├── generate_dpo_dataset.py
+│   │   ├── train_dpo.py
+│   │   ├── 📁 data
+│   │   │   ├── custom_distilabel.py
+│   │   │   └── dpo_data_loader.py
+│   │   └── 📁 training
+│   │       ├── dpo_trainer.py
+│   │       └── model_loader.py
+│   │
+│   └── 📁 sft                 # SFT 학습 파이프라인
+│       ├── train_sft.py
+│       ├── 📁 data
+│       │   ├── collator.py
+│       │   ├── data_loader.py
+│       │   └── preprocessor.py
+│       └── 📁 training
+│           ├── model_loader.py
+│           └── trainer.py
 │
-├─ common/
-│   ├─ set_seed.py
-│   └─ wandb.py
+├── 📁 frontend                # 사용자 인터페이스 (React)
+│   └── src
+│       ├── App.css
+│       ├── App.js
+│       ├── index.css
+│       └── index.js
 │
-├─ dpo/
-│   ├─ evaluate_chatbot.py
-│   ├─ generate_dpo_dataset.py
-│   ├─ train_dpo.py
-│   ├─ data/
-│   │   ├─ custom_distilabel.py
-│   │   └─ dpo_data_loader.py
-│   └─ training/
-│       ├─ dpo_trainer.py
-│       └─ model_loader.py
+├── 📁 scripts                 # 실행 자동화 스크립트
+│   ├── generate_dataset
+│   ├── rag
+│   ├── serving
+│   └── train
 │
-├─ sft/
-│   ├─ train_sft.py
-│   ├─ data/
-│   │   ├─ collator.py
-│   │   ├─ data_loader.py
-│   │   └─ preprocessor.py
-│   └─ training/
-│       ├─ model_loader.py
-│       └─ trainer.py
+├── 📁 configs                 # 설정 파일
+│   ├── dpo_config.yaml
+│   ├── rag.yaml
+│   ├── rag_metric.yaml
+│   └── sft_config.yaml
 │
-frontend/
-├─ src/
-│   ├─ App.css
-│   ├─ App.js
-│   ├─ index.css
-│   └─ index.js
-│
-scripts/
-├─ generate_dataset/
-├─ rag/
-├─ serving/
-├─ train/
-│
-configs/
-│   ├─ dpo_config.yaml
-│   ├─ rag.yaml
-│   ├─ rag_metric.yaml
-│   └─ sft_config.yaml
-│
-notebooks/
+└── 📁 notebooks               # 실험 및 분석 노트북
+
 ```
 
 ## 5. 실행 방법
 
+본 프로젝트는 **RAG 구축 → 모델 학습 → 서빙 및 웹 실행** 순서로 진행됩니다.
+
 세팅을 직접하려면 `dpo_config.yaml`, `rag.yaml`, `rag_metric.yaml`, `sft_config.yaml` 를 참고해주세요.
 
-**기본 설정**
+**RAG 구축**
 
 ```bash
 # 벡터 DB 생성
 bash scripts/rag/build_rag.sh
+```
 
+**SFT 및 DPO 학습**
+```bash
 # 모델 SFT 학습 예시
 bash scripts/sft/train_sft.sh
 
 # 모델 DPO 학습 예시
-bash scripts/dpo/train_dpo.sh```
+bash scripts/dpo/train_dpo.sh
+```
 
-**웹 실행**
-
+**서비스 서빙**
 ```bash
 # 기본 사용법
 bash scripts/serving/serve_model.sh
