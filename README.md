@@ -3,7 +3,7 @@
 # 여행친구 (여친)
 
 ## 0. 시연 영상
-[프로젝트 데모 영상 보기](./assets/demo.mp4)
+![화면녹화-1 (2)](https://github.com/user-attachments/assets/b781a2cc-bb23-4971-ba05-bdf9484fcc2f)
 
 ## 1. 프로젝트 개요
 
