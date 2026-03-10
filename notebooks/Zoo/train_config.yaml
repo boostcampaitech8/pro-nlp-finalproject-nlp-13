@@ -1,0 +1,102 @@
+experiment_name: "exaone-persona-lora"
+
+# 모델 설정
+model:
+  name: "LGAI-EXAONE/EXAONE-4.0-1.2B"
+  template_type: "exaone"  
+  max_length: 512
+  
+  # 양자화
+  quantization:
+    enabled: false
+    load_in_8bit: True   # 8bit 양자화
+    load_in_4bit: false    # 4bit 양자화
+
+# 데이터 설정
+data:
+  train_file: "../../data/persona_data/empathy_multiturn_qa_dataset.csv"
+  test_size: 0.1
+  seed: 42
+  usecols: 
+    - "situation"
+    - "context"
+    - "response"
+
+# DataCollator 설정
+data_collator:
+  learning_mode: "skip_think"  # assistant_only, skip_think
+
+# LoRA 설정
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "up_proj"
+    - "down_proj"
+  bias: "none"
+
+# 학습 설정
+training:
+  # Epoch & Batch
+  num_train_epochs: 3
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 16
+  
+  # Optimizer
+  learning_rate: 2.0e-5
+  lr_scheduler_type: "polynomial"
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  optim: "adamw_torch"
+  
+  # 메모리 최적화
+  gradient_checkpointing: true
+  fp16: true
+  
+  # Logging & Evaluation
+  logging_steps: 50
+  logging_first_step: true
+  eval_strategy: "steps"
+  eval_steps: 500
+  
+  # Saving
+  save_strategy: "steps"
+  save_steps: 500
+  save_total_limit: 2
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_loss"
+  greater_is_better: false
+  
+  # 기타
+  dataloader_num_workers: 2
+  remove_unused_columns: false
+  seed: 42
+
+# Callback 설정
+callbacks:
+  generation:
+    enabled: true
+    num_samples: 5
+    max_new_tokens: 100
+
+# 경로
+paths:
+  output_dir: "../../models/exaone_lora_persona"
+  logging_dir: "../../logs/exaone_lora_persona"
+
+# Wandb
+wandb:
+  enabled: false
+  project: "exaone-persona-sft"
+  entity: null  # Wandb username (null이면 기본값)
+  tags:
+    - "exaone"
+    - "lora"
+    - "persona"

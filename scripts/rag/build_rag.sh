@@ -1,0 +1,1 @@
+python -m src.rag.rag_builder --config config/rag.yaml

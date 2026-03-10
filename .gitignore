@@ -1,0 +1,91 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+.env
+
+# OS / editor
+.DS_Store
+.vscode/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Project-specific backups
+baseline_code/
+
+# Data (원본/중간 산출물)
+/data/
+*.csv
+*.pkl
+*.tar.gz
+*.parquet
+
+# Training outputs / logs
+outputs/
+logs/
+wandb/
+checkpoint
+
+# Archive files
+*.tar.gz
+
+# Models
+models/
+result/
+*.safetensors
+*.bin
+*.pt
+*.index
+*.npy
+
+# Hugging Face Datasets Cache (often large arrow files)
+~/.cache/huggingface/
+
+# output.csv
+output.csv
+
+# png files
+*.png
+
+# json files
+*.json
+
+# deepeval files
+.deepeval
+
+# API key file
+.env
+
+# lof files
+*.log
+
+# rag db
+db
+
+# dependencies
+frontend/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+
+# misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
